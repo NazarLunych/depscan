@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# JetBrains IDE
+.idea/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+*.pem
+.vercel
+
+# Claude
+CLAUDE.md
+docs/
