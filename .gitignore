@@ -20,6 +20,12 @@ build/
 *.log
 npm-debug.log*
 
+# TypeScript
+tsconfig.tsbuildinfo
+
+# Next.js generated
+next-env.d.ts
+
 # Misc
 *.pem
 .vercel
