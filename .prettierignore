@@ -1,0 +1,7 @@
+.next/
+node_modules/
+coverage/
+*.lock
+next-env.d.ts
+tsconfig.tsbuildinfo
+public/
