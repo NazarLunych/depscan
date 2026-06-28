@@ -10,7 +10,9 @@ function parseCvssScore(score: string): number {
 
 function scoreToSeverity(score: number): Vulnerability['severity'] {
   if (score >= 9) return 'critical'
+
   if (score >= 7) return 'high'
+
   if (score >= 4) return 'medium'
 
   return 'low'
@@ -34,11 +36,9 @@ function deriveAffectedRange(events: RangeEvent[]): string {
 export function normalizeOsvVulnerability(osv: OsvVulnerability): Vulnerability {
   const scoreStr = osv.severity?.[0]?.score ?? ''
   const severity = scoreToSeverity(parseCvssScore(scoreStr))
-
   const events = (osv.affected?.[0]?.ranges?.[0]?.events ?? []) as RangeEvent[]
   const affectedRange = deriveAffectedRange(events)
   const fixedIn = events.find((e) => e.fixed !== undefined)?.fixed
-
   const url = osv.references?.[0]?.url
 
   return {
@@ -82,6 +82,7 @@ export function mergeVulnerabilities(
   const map = new Map<string, Vulnerability>()
 
   for (const v of osvVulns) map.set(v.id, v)
+
   for (const v of npmVulns) map.set(v.id, v)
 
   return Array.from(map.values())
