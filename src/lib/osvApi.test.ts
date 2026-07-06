@@ -23,6 +23,7 @@ const makeOsv = (overrides: Partial<OsvVulnerability> = {}): OsvVulnerability =>
 })
 const makeVuln = (overrides: Partial<Vulnerability> = {}): Vulnerability => ({
   id: 'GHSA-default',
+  packageName: 'test-pkg',
   title: 'Default vuln',
   severity: 'medium',
   affectedRange: '>=1.0.0 <2.0.0',
@@ -33,6 +34,7 @@ describe('normalizeOsvVulnerability', () => {
   it('maps critical CVSS score (9.8)', () => {
     const result = normalizeOsvVulnerability(
       makeOsv({ severity: [{ type: 'CVSS_V3', score: '9.8' }] }),
+      'test-pkg',
     )
     expect(result.severity).toBe('critical')
   })
@@ -40,6 +42,7 @@ describe('normalizeOsvVulnerability', () => {
   it('maps high CVSS score (7.5)', () => {
     const result = normalizeOsvVulnerability(
       makeOsv({ severity: [{ type: 'CVSS_V3', score: '7.5' }] }),
+      'test-pkg',
     )
     expect(result.severity).toBe('high')
   })
@@ -47,6 +50,7 @@ describe('normalizeOsvVulnerability', () => {
   it('maps medium CVSS score (5.0)', () => {
     const result = normalizeOsvVulnerability(
       makeOsv({ severity: [{ type: 'CVSS_V3', score: '5.0' }] }),
+      'test-pkg',
     )
     expect(result.severity).toBe('medium')
   })
@@ -54,6 +58,7 @@ describe('normalizeOsvVulnerability', () => {
   it('maps low CVSS score (2.1)', () => {
     const result = normalizeOsvVulnerability(
       makeOsv({ severity: [{ type: 'CVSS_V3', score: '2.1' }] }),
+      'test-pkg',
     )
     expect(result.severity).toBe('low')
   })
@@ -63,12 +68,13 @@ describe('normalizeOsvVulnerability', () => {
       makeOsv({
         severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H' }],
       }),
+      'test-pkg',
     )
     expect(result.severity).toBe('low')
   })
 
   it('maps introduced + fixed to correct affectedRange', () => {
-    const result = normalizeOsvVulnerability(makeOsv())
+    const result = normalizeOsvVulnerability(makeOsv(), 'test-pkg')
     expect(result.affectedRange).toBe('>= 1.0.0 < 2.0.0')
     expect(result.fixedIn).toBe('2.0.0')
   })
@@ -87,6 +93,7 @@ describe('normalizeOsvVulnerability', () => {
           },
         ],
       }),
+      'test-pkg',
     )
     expect(result.affectedRange).toBe('< 1.5.0')
     expect(result.fixedIn).toBe('1.5.0')
@@ -106,13 +113,14 @@ describe('normalizeOsvVulnerability', () => {
           },
         ],
       }),
+      'test-pkg',
     )
     expect(result.affectedRange).toBe('>= 3.0.0')
     expect(result.fixedIn).toBeUndefined()
   })
 
   it('maps missing all optional fields to safe defaults', () => {
-    const result = normalizeOsvVulnerability({ id: 'GHSA-bare' })
+    const result = normalizeOsvVulnerability({ id: 'GHSA-bare' }, 'test-pkg')
     expect(result.id).toBe('GHSA-bare')
     expect(result.title).toBe('GHSA-bare')
     expect(result.severity).toBe('low')
@@ -122,24 +130,28 @@ describe('normalizeOsvVulnerability', () => {
   })
 
   it('uses summary as title when present', () => {
-    const result = normalizeOsvVulnerability(makeOsv({ summary: 'SQL injection' }))
+    const result = normalizeOsvVulnerability(makeOsv({ summary: 'SQL injection' }), 'test-pkg')
     expect(result.title).toBe('SQL injection')
   })
 
   it('falls back to id as title when summary is missing', () => {
-    const result = normalizeOsvVulnerability(makeOsv({ id: 'GHSA-xyz', summary: undefined }))
+    const result = normalizeOsvVulnerability(
+      makeOsv({ id: 'GHSA-xyz', summary: undefined }),
+      'test-pkg',
+    )
     expect(result.title).toBe('GHSA-xyz')
   })
 
   it('sets url from first reference', () => {
     const result = normalizeOsvVulnerability(
       makeOsv({ references: [{ type: 'ADVISORY', url: 'https://example.com' }] }),
+      'test-pkg',
     )
     expect(result.url).toBe('https://example.com')
   })
 
   it('sets url to undefined when no references', () => {
-    const result = normalizeOsvVulnerability(makeOsv({ references: [] }))
+    const result = normalizeOsvVulnerability(makeOsv({ references: [] }), 'test-pkg')
     expect(result.url).toBeUndefined()
   })
 })

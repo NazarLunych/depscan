@@ -59,9 +59,10 @@ const NPM_SEVERITY_MAP = {
   low: 'low',
 } as const
 
-function normalizeNpmAdvisory(advisory: NpmAdvisory): Vulnerability {
+function normalizeNpmAdvisory(packageName: string, advisory: NpmAdvisory): Vulnerability {
   return {
     id: String(advisory.id),
+    packageName,
     title: advisory.title,
     severity: NPM_SEVERITY_MAP[advisory.severity],
     affectedRange: advisory.vulnerable_versions,
@@ -91,7 +92,9 @@ export async function fetchBulkAdvisories(
 
   const parsed = NpmBulkAdvisoriesResponseSchema.parse(await res.json())
 
-  return Object.values(parsed).flat().map(normalizeNpmAdvisory)
+  return Object.entries(parsed).flatMap(([packageName, advisories]) =>
+    advisories.map((advisory) => normalizeNpmAdvisory(packageName, advisory)),
+  )
 }
 
 export function filterRelevantAdvisories(

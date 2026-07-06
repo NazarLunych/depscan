@@ -27,10 +27,28 @@ export const PackageAnalysisSchema = z.object({
   highlight: HighlightSchema,
 })
 
+// ─── Analyzer result — analyzePackage's terminal outcome ──────────────────
+
+export const AnalyzerResultSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('done'),
+    name: z.string().min(1),
+    currentVersion: z.string(),
+    analysis: PackageAnalysisSchema,
+  }),
+  z.object({
+    status: z.literal('error'),
+    name: z.string().min(1),
+    currentVersion: z.string().nullable(),
+    error: z.string(),
+  }),
+])
+
 // ─── Vulnerability — shared between npm bulk advisories and OSV ───────────
 
 export const VulnerabilitySchema = z.object({
   id: z.string(),
+  packageName: z.string(),
   title: z.string(),
   severity: SecurityRiskSchema,
   affectedRange: z.string(),

@@ -14,6 +14,7 @@ const makePackument = (versions: string[], latest: string, name = 'test-pkg'): N
 const basePackument = makePackument(['1.0.0', '1.2.3', '2.0.0', '2.1.0'], '2.1.0')
 const makeAdvisory = (affectedRange: string, id = 'GHSA-test'): Vulnerability => ({
   id,
+  packageName: 'test-pkg',
   title: 'Test advisory',
   severity: 'high',
   affectedRange,

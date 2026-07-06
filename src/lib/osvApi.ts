@@ -3,9 +3,9 @@ import type { OsvVulnerability, Vulnerability } from '@/types'
 import { OsvQueryResponseSchema } from '@/lib/schemas'
 
 function parseCvssScore(score: string): number {
-  const numeric = parseFloat(score)
+  const numeric = Number.parseFloat(score)
 
-  return isNaN(numeric) ? 0 : numeric
+  return Number.isNaN(numeric) ? 0 : numeric
 }
 
 function scoreToSeverity(score: number): Vulnerability['severity'] {
@@ -27,13 +27,16 @@ function deriveAffectedRange(events: RangeEvent[]): string {
   if (introduced === undefined && fixed === undefined) return '*'
 
   if (introduced === '0' || introduced === undefined) {
-    return fixed !== undefined ? `< ${fixed}` : '*'
+    return fixed == undefined ? '*' : `< ${fixed}`
   }
 
-  return fixed !== undefined ? `>= ${introduced} < ${fixed}` : `>= ${introduced}`
+  return fixed == undefined ? `>= ${introduced}` : `>= ${introduced} < ${fixed}`
 }
 
-export function normalizeOsvVulnerability(osv: OsvVulnerability): Vulnerability {
+export function normalizeOsvVulnerability(
+  osv: OsvVulnerability,
+  packageName: string,
+): Vulnerability {
   const scoreStr = osv.severity?.[0]?.score ?? ''
   const severity = scoreToSeverity(parseCvssScore(scoreStr))
   const events = (osv.affected?.[0]?.ranges?.[0]?.events ?? []) as RangeEvent[]
@@ -43,6 +46,7 @@ export function normalizeOsvVulnerability(osv: OsvVulnerability): Vulnerability 
 
   return {
     id: osv.id,
+    packageName,
     title: osv.summary ?? osv.id,
     severity,
     affectedRange,
@@ -72,7 +76,7 @@ export async function queryOsvVulnerabilities(
     throw new Error(`OSV response schema mismatch for ${packageName}@${version}`)
   }
 
-  return (result.data.vulns ?? []).map(normalizeOsvVulnerability)
+  return (result.data.vulns ?? []).map((vuln) => normalizeOsvVulnerability(vuln, packageName))
 }
 
 export function mergeVulnerabilities(

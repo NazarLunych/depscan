@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import type {
   AnalysisSummarySchema,
   AnalyzeRequestSchema,
+  AnalyzerResultSchema,
   ChangelogSourceSchema,
   DependencyMapSchema,
   HardFactsSchema,
@@ -38,6 +39,7 @@ export type SseEventType = z.infer<typeof SseEventTypeSchema>
 // ─── Domain entities ──────────────────────────────────────────────────────
 
 export type PackageAnalysis = z.infer<typeof PackageAnalysisSchema>
+export type AnalyzerResult = z.infer<typeof AnalyzerResultSchema>
 export type Vulnerability = z.infer<typeof VulnerabilitySchema>
 export type HardFacts = z.infer<typeof HardFactsSchema>
 export type PackageState = z.infer<typeof PackageStateSchema>
