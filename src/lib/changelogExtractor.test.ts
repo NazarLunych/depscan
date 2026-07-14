@@ -21,9 +21,7 @@ const mockParseGitHubRepo = vi.mocked(parseGitHubRepo)
 const mockFetchReleases = vi.mocked(fetchReleases)
 const mockFetchChangelogContents = vi.mocked(fetchChangelogContents)
 const mockSearchChangelog = vi.mocked(searchChangelog)
-
 // ─── extractRelevantSections ──────────────────────────────────────────────────
-// eslint-disable-next-line padding-line-between-statements
 const SAMPLE_CHANGELOG = `
 # Changelog
 
@@ -187,7 +185,7 @@ describe('resolveChangelog', () => {
 
     const result = await resolveChangelog('react', '17.0.2', '18.0.0', REPO_URL)
 
-    expect(result).toEqual({ text: '', source: 'none' })
+    expect(result).toEqual({ text: '', source: 'none', coverageGap: null })
   })
 
   it('skips step 2 and goes to Exa when fetchReleases returns null (403)', async () => {
@@ -231,5 +229,57 @@ describe('resolveChangelog', () => {
     )
 
     expect(result.source).toBe('github-releases')
+  })
+
+  it('reports a coverage gap when a multi-major jump misses intermediate majors', async () => {
+    // Range 1.0.0 → 4.0.0 spans majors 2, 3, 4; only v4 has release notes.
+    const v4Body = `## 4.0.0\n\n${'Breaking change in v4. '.repeat(20)}`
+    mockFetchReleases.mockResolvedValue([{ tag_name: 'v4.0.0', body: v4Body }])
+    mockFetchChangelogContents.mockResolvedValue(null)
+
+    const result = await resolveChangelog('pkg', '1.0.0', '4.0.0', REPO_URL)
+
+    expect(result.coverageGap).not.toBeNull()
+    expect(result.coverageGap).toContain('v2.x')
+    expect(result.coverageGap).toContain('v3.x')
+    expect(result.coverageGap).not.toContain('v4.x')
+  })
+
+  it('reports no coverage gap when all majors in range are present', async () => {
+    const section = (label: string) => `Breaking change details for ${label}. `.repeat(15) // > 300 chars
+
+    const body = `## 4.0.0\n\n${section('v4')}\n\n## 3.0.0\n\n${section('v3')}\n\n## 2.0.0\n\n${section('v2')}`
+
+    mockFetchReleases.mockResolvedValue([{ tag_name: 'v4.0.0', body }])
+    mockFetchChangelogContents.mockResolvedValue(null)
+
+    const result = await resolveChangelog('pkg', '1.0.0', '4.0.0', REPO_URL)
+
+    expect(result.coverageGap).toBeNull()
+  })
+
+  it('reports a coverage gap when a major has only a link-only stub section', async () => {
+    // v3.0.0's section exists but only points to an external wiki — no real content.
+    const section = (label: string) => `Breaking change details for ${label}. `.repeat(15)
+
+    const body = `## 4.0.0\n\n${section('v4')}\n\n## 3.0.0\n\n[See the wiki](https://example.com/wiki)\n\n## 2.0.0\n\n${section('v2')}`
+
+    mockFetchReleases.mockResolvedValue([{ tag_name: 'v4.0.0', body }])
+    mockFetchChangelogContents.mockResolvedValue(null)
+
+    const result = await resolveChangelog('pkg', '1.0.0', '4.0.0', REPO_URL)
+
+    expect(result.coverageGap).not.toBeNull()
+    expect(result.coverageGap).toContain('v3.x')
+    expect(result.coverageGap).not.toContain('v2.x')
+    expect(result.coverageGap).not.toContain('v4.x')
+  })
+
+  it('reports no coverage gap for a single-major jump', async () => {
+    mockFetchReleases.mockResolvedValue([{ tag_name: 'v18.0.0', body: LONG_BODY }])
+
+    const result = await resolveChangelog('react', '17.0.2', '18.0.0', REPO_URL)
+
+    expect(result.coverageGap).toBeNull()
   })
 })

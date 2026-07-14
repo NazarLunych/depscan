@@ -54,6 +54,7 @@ export const VulnerabilitySchema = z.object({
   affectedRange: z.string(),
   fixedIn: z.string().optional(),
   url: z.string().url().optional(),
+  cveId: z.string().nullable(),
 })
 
 // ─── Hard facts passed to Claude ──────────────────────────────────────────
@@ -63,9 +64,18 @@ export const HardFactsSchema = z.object({
   currentVersion: z.string(),
   latestVersion: z.string(),
   deprecated: z.string().nullable(),
+  // Deprecation note for the target (latest) version specifically — a version
+  // can be flagged as a bad release (e.g. lodash 4.18.0 "Bad release") even when
+  // the current version is fine. null when the target version is not deprecated.
+  latestDeprecated: z.string().nullable(),
   vulnerabilities: z.array(VulnerabilitySchema),
   changelogText: z.string(),
   changelogSource: ChangelogSourceSchema,
+  // Human-readable note when the resolved changelog does not cover every major
+  // version in the (current, latest] range — null when coverage is complete or
+  // the gap can't be determined. Passed to Claude so it flags the gap instead of
+  // silently presenting a partial history as complete.
+  coverageGap: z.string().nullable(),
 })
 
 // ─── Input: the parsed package.json dependency maps ───────────────────────
@@ -103,7 +113,7 @@ export const AnalysisSummarySchema = z.object({
 // ─── SSE event schemas ────────────────────────────────────────────────────
 
 export const SseStartedPayloadSchema = z.object({
-  total: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
 })
 
 export const SsePackageDonePayloadSchema = z.object({
@@ -145,7 +155,9 @@ export const NpmPackumentSchema = z.object({
           url: z.string(),
         })
         .optional(),
-      deprecated: z.string().optional(),
+      // npm registry sometimes returns `deprecated: true` (no reason text)
+      // instead of the usual deprecation-message string — accept both.
+      deprecated: z.union([z.string(), z.boolean()]).optional(),
     }),
   ),
 })
@@ -167,6 +179,14 @@ export const NpmBulkAdvisoriesResponseSchema = z.record(z.string(), z.array(NpmA
 export const OsvVulnerabilitySchema = z.object({
   id: z.string(),
   summary: z.string().optional(),
+  aliases: z.array(z.string()).optional(),
+  // GitHub/OSV expose a ready-made severity bucket here (LOW/MODERATE/HIGH/
+  // CRITICAL); the `severity` array below is a CVSS vector string, not a number.
+  database_specific: z
+    .object({
+      severity: z.string().optional(),
+    })
+    .optional(),
   severity: z
     .array(
       z.object({

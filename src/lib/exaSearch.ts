@@ -15,6 +15,7 @@ export async function searchChangelog(
         text: { maxCharacters: 8_000 },
       },
     })
+
     const texts = response.results
       .map((r) => r.text)
       .filter((t): t is string => typeof t === 'string' && t.length > 0)

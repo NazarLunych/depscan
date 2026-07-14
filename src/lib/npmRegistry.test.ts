@@ -2,7 +2,7 @@
 import type { NpmPackument, Vulnerability } from '@/types'
 import { describe, expect, it } from 'vitest'
 
-import { filterRelevantAdvisories, resolveCurrentVersion } from '@/lib/npmRegistry'
+import { filterRelevantAdvisories, normalizeDeprecated, resolveCurrentVersion } from '@/lib/npmRegistry'
 
 const makePackument = (versions: string[], latest: string, name = 'test-pkg'): NpmPackument => ({
   name,
@@ -11,13 +11,16 @@ const makePackument = (versions: string[], latest: string, name = 'test-pkg'): N
     versions.map((v) => [v, { version: v }]),
   ) as NpmPackument['versions'],
 })
+
 const basePackument = makePackument(['1.0.0', '1.2.3', '2.0.0', '2.1.0'], '2.1.0')
+
 const makeAdvisory = (affectedRange: string, id = 'GHSA-test'): Vulnerability => ({
   id,
   packageName: 'test-pkg',
   title: 'Test advisory',
   severity: 'high',
   affectedRange,
+  cveId: null,
 })
 
 describe('resolveCurrentVersion', () => {
@@ -102,28 +105,14 @@ describe('filterRelevantAdvisories', () => {
     expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(1)
   })
 
-  it('excludes advisory where latest is still in range', () => {
-    const advisories = [makeAdvisory('>=1.0.0 <3.0.0')]
-    expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(0)
-  })
-
-  it('excludes advisory where current is not affected (range below)', () => {
-    const advisories = [makeAdvisory('>=2.0.0')]
-    expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(0)
-  })
-
-  it('excludes advisory where current is not affected (range above)', () => {
-    const advisories = [makeAdvisory('<1.0.0')]
-    expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(0)
-  })
-
-  it('excludes advisory with wildcard range (*)', () => {
-    const advisories = [makeAdvisory('*')]
-    expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(0)
-  })
-
-  it('excludes advisory with invalid affectedRange (does not throw)', () => {
-    const advisories = [makeAdvisory('invalid-range!!!')]
+  it.each([
+    ['latest is still in range', '>=1.0.0 <3.0.0'],
+    ['current is not affected (range below)', '>=2.0.0'],
+    ['current is not affected (range above)', '<1.0.0'],
+    ['wildcard range (*)', '*'],
+    ['invalid affectedRange (does not throw)', 'invalid-range!!!'],
+  ])('excludes advisory where %s', (_description, affectedRange) => {
+    const advisories = [makeAdvisory(affectedRange)]
     expect(filterRelevantAdvisories(advisories, currentVersion, latestVersion)).toHaveLength(0)
   })
 
@@ -142,5 +131,23 @@ describe('filterRelevantAdvisories', () => {
 
     expect(result).toHaveLength(2)
     expect(result.map((a) => a.id)).toEqual(['GHSA-001', 'GHSA-004'])
+  })
+})
+
+describe('normalizeDeprecated', () => {
+  it('returns the string as-is when given a reason', () => {
+    expect(normalizeDeprecated('use something else')).toBe('use something else')
+  })
+
+  it('returns a fallback message when given `true` (npm registry boolean quirk)', () => {
+    expect(normalizeDeprecated(true)).toBe('deprecated')
+  })
+
+  it('returns null when given `false`', () => {
+    expect(normalizeDeprecated(false)).toBeNull()
+  })
+
+  it('returns null when given undefined', () => {
+    expect(normalizeDeprecated(undefined)).toBeNull()
   })
 })

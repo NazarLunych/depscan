@@ -7,6 +7,7 @@ export function withConcurrency<T, R>(
   items: T[],
   concurrency: number,
   worker: (item: T) => Promise<R>,
+  onItemDone?: (result: R, index: number) => void,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let cursor = 0
@@ -17,6 +18,7 @@ export function withConcurrency<T, R>(
       const item = items[index] as T
 
       results[index] = await worker(item)
+      onItemDone?.(results[index] as R, index)
     }
   }
 
@@ -25,14 +27,29 @@ export function withConcurrency<T, R>(
   return Promise.all(workers).then(() => results)
 }
 
-export async function processBatch(
+function mergeDependencies(
   packageJson: PackageJsonInput,
   includeDevDependencies: boolean,
-): Promise<AnalyzerResult[]> {
-  const dependencies = {
+): Record<string, string> {
+  return {
     ...packageJson.dependencies,
     ...(includeDevDependencies ? packageJson.devDependencies : {}),
   }
+}
+
+export function countDependencies(
+  packageJson: PackageJsonInput,
+  includeDevDependencies: boolean,
+): number {
+  return Object.keys(mergeDependencies(packageJson, includeDevDependencies)).length
+}
+
+export async function processBatch(
+  packageJson: PackageJsonInput,
+  includeDevDependencies: boolean,
+  onResult?: (result: AnalyzerResult) => void,
+): Promise<AnalyzerResult[]> {
+  const dependencies = mergeDependencies(packageJson, includeDevDependencies)
   const entries = Object.entries(dependencies)
 
   if (entries.length === 0) {
@@ -41,5 +58,10 @@ export async function processBatch(
 
   const advisories = await fetchBulkAdvisories(dependencies)
 
-  return withConcurrency(entries, 3, ([name, range]) => analyzePackage(name, range, advisories))
+  return withConcurrency(
+    entries,
+    3,
+    ([name, range]) => analyzePackage(name, range, advisories),
+    onResult ? (result) => onResult(result) : undefined,
+  )
 }

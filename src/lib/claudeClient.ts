@@ -53,6 +53,7 @@ async function attempt(facts: HardFacts): Promise<PackageAnalysis> {
     },
     { timeout: 30_000 },
   )
+
   const toolUseBlock = response.content.find((block) => block.type === 'tool_use')
 
   if (!toolUseBlock) {
@@ -62,7 +63,11 @@ async function attempt(facts: HardFacts): Promise<PackageAnalysis> {
   const result = PackageAnalysisSchema.safeParse(toolUseBlock.input)
 
   if (!result.success) {
-    throw new Error(`Claude output failed schema validation: ${result.error.message}`)
+    console.error(
+      `[claudeClient] output failed schema validation for "${facts.packageName}":`,
+      result.error.issues,
+    )
+    throw new Error(`Claude returned an invalid analysis for "${facts.packageName}"`)
   }
 
   return result.data

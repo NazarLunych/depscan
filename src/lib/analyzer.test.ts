@@ -41,7 +41,12 @@ function mockAnalysisFor(packageName: string, overrides: Record<string, unknown>
 
 function makePackument(
   name: string,
-  opts: { latest?: string; deprecated?: string; repositoryUrl?: string } = {},
+  opts: {
+    latest?: string
+    deprecated?: string
+    latestDeprecated?: string
+    repositoryUrl?: string
+  } = {},
 ) {
   const latest = opts.latest ?? '2.0.0'
 
@@ -54,7 +59,10 @@ function makePackument(
         ...(opts.repositoryUrl && { repository: { type: 'git', url: opts.repositoryUrl } }),
         ...(opts.deprecated && { deprecated: opts.deprecated }),
       },
-      [latest]: { version: latest },
+      [latest]: {
+        version: latest,
+        ...(opts.latestDeprecated && { deprecated: opts.latestDeprecated }),
+      },
     },
   }
 }
@@ -175,6 +183,124 @@ describe('analyzer + batchProcessor integration', () => {
     const bulkAdvisoryCalls = mockFetch.mock.calls.filter(([input]) =>
       String(input).includes('/-/npm/v1/security/advisories/bulk'),
     )
+
     expect(bulkAdvisoryCalls).toHaveLength(1)
+  })
+
+  it('passes latestDeprecated to Claude when the target version is a bad release', async () => {
+    const packageJson = { dependencies: { 'bad-latest-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/bad-latest-pkg')) {
+        return jsonResponse(
+          makePackument('bad-latest-pkg', { latestDeprecated: 'Bad release. Use 1.9.9 instead.' }),
+        )
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    let capturedPrompt = ''
+
+    mockCreate.mockImplementation(async (params: { messages: Array<{ content: string }> }) => {
+      capturedPrompt = params.messages[0]?.content ?? ''
+
+      return mockAnalysisFor('bad-latest-pkg')
+    })
+
+    await processBatch(packageJson, false)
+
+    const facts = JSON.parse(/(\{[\s\S]*\})/.exec(capturedPrompt)?.[1] ?? '{}')
+
+    expect(facts.latestDeprecated).toBe('Bad release. Use 1.9.9 instead.')
+    expect(facts.deprecated).toBeNull()
+  })
+
+  it('normalizes a boolean `deprecated: true` from the npm registry instead of failing', async () => {
+    const packageJson = { dependencies: { 'bool-deprecated-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/bool-deprecated-pkg')) {
+        return jsonResponse({
+          name: 'bool-deprecated-pkg',
+          'dist-tags': { latest: '2.0.0' },
+          versions: {
+            '1.0.0': { version: '1.0.0', deprecated: true },
+            '2.0.0': { version: '2.0.0' },
+          },
+        })
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    let capturedPrompt = ''
+
+    mockCreate.mockImplementation(async (params: { messages: Array<{ content: string }> }) => {
+      capturedPrompt = params.messages[0]?.content ?? ''
+
+      return mockAnalysisFor('bool-deprecated-pkg')
+    })
+
+    const results = await processBatch(packageJson, false)
+
+    expect(results[0]?.status).toBe('done')
+
+    const facts = JSON.parse(/(\{[\s\S]*\})/.exec(capturedPrompt)?.[1] ?? '{}')
+
+    expect(facts.deprecated).toBe('deprecated')
+  })
+
+  it('returns a human-readable error instead of raw Zod JSON when Claude output fails validation', async () => {
+    const packageJson = { dependencies: { 'truncated-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/truncated-pkg')) {
+        return jsonResponse(makePackument('truncated-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    // Simulates a truncated/malformed tool_use input (e.g. hit max_tokens) —
+    // required fields missing, which is what triggers ZodError in claudeClient.
+    mockCreate.mockImplementation(async () => ({
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_1',
+          name: 'record_package_analysis',
+          input: { package: 'truncated-pkg', current_version: '1.0.0' },
+        },
+      ],
+    }))
+
+    const results = await processBatch(packageJson, false)
+
+    expect(results[0]?.status).toBe('error')
+
+    if (results[0]?.status === 'error') {
+      expect(results[0].error).not.toContain('"code"')
+      expect(results[0].error).not.toContain('invalid_type')
+      expect(results[0].error).toContain('truncated-pkg')
+    }
   })
 })

@@ -16,7 +16,12 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (
     <html lang="en" className="h-full">
-      <body className="h-full min-h-screen bg-zinc-950 text-zinc-50 antialiased">{children}</body>
+      <body
+        className="h-full min-h-screen bg-zinc-950 text-zinc-50 antialiased"
+        suppressHydrationWarning
+      >
+        {children}
+      </body>
     </html>
   )
 }

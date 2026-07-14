@@ -3,7 +3,7 @@ import type { AnalyzerResult, PackageJsonInput } from '@/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { analyzePackage } from '@/lib/analyzer'
-import { processBatch, withConcurrency } from '@/lib/batchProcessor'
+import { countDependencies, processBatch, withConcurrency } from '@/lib/batchProcessor'
 import { fetchBulkAdvisories } from '@/lib/npmRegistry'
 
 vi.mock('@/lib/analyzer', () => ({
@@ -16,6 +16,7 @@ vi.mock('@/lib/npmRegistry', () => ({
 
 const mockAnalyzePackage = vi.mocked(analyzePackage)
 const mockFetchBulkAdvisories = vi.mocked(fetchBulkAdvisories)
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe('withConcurrency', () => {
@@ -58,6 +59,71 @@ describe('withConcurrency', () => {
         throw new Error('worker failed')
       }),
     ).rejects.toThrow('worker failed')
+  })
+
+  it('calls onItemDone once per item with the result and index', async () => {
+    const items = [10, 20, 30]
+    const done: Array<{ result: number; index: number }> = []
+
+    await withConcurrency(
+      items,
+      3,
+      async (item) => item * 2,
+      (result, index) => {
+        done.push({ result, index })
+      },
+    )
+
+    expect(done).toHaveLength(3)
+    expect(done.sort((a, b) => a.index - b.index)).toEqual([
+      { result: 20, index: 0 },
+      { result: 40, index: 1 },
+      { result: 60, index: 2 },
+    ])
+  })
+
+  it('calls onItemDone progressively, not only after all workers finish', async () => {
+    const callOrder: string[] = []
+    const items = [30, 10]
+
+    await withConcurrency(
+      items,
+      2,
+      async (ms) => {
+        await delay(ms)
+
+        return ms
+      },
+      (result) => {
+        callOrder.push(`done:${result}`)
+      },
+    )
+
+    expect(callOrder).toEqual(['done:10', 'done:30'])
+  })
+})
+
+describe('countDependencies', () => {
+  it('counts only dependencies when includeDevDependencies is false', () => {
+    const packageJson: PackageJsonInput = {
+      dependencies: { react: '^18.2.0', lodash: '^4.17.21' },
+      devDependencies: { vitest: '^3.0.0' },
+    }
+
+    expect(countDependencies(packageJson, false)).toBe(2)
+  })
+
+  it('counts merged dependencies when includeDevDependencies is true', () => {
+    const packageJson: PackageJsonInput = {
+      dependencies: { react: '^18.2.0' },
+      devDependencies: { vitest: '^3.0.0' },
+    }
+
+    expect(countDependencies(packageJson, true)).toBe(2)
+  })
+
+  it('returns 0 for an empty package.json', () => {
+    expect(countDependencies({}, true)).toBe(0)
   })
 })
 
@@ -134,5 +200,17 @@ describe('processBatch', () => {
 
     expect(result).toHaveLength(2)
     expect(result.map((r) => r.name).sort()).toEqual(['lodash', 'react'])
+  })
+
+  it('calls onResult once per package as it completes', async () => {
+    const packageJson: PackageJsonInput = {
+      dependencies: { react: '^18.2.0', lodash: '^4.17.21' },
+    }
+    const onResult = vi.fn()
+
+    await processBatch(packageJson, false, onResult)
+
+    expect(onResult).toHaveBeenCalledTimes(2)
+    expect(onResult.mock.calls.map(([result]) => result.name).sort()).toEqual(['lodash', 'react'])
   })
 })

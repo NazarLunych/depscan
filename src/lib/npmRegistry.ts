@@ -52,6 +52,16 @@ export function resolveCurrentVersion(range: string, packument: NpmPackument): s
   return resolved
 }
 
+// npm registry sometimes flags a version deprecated with a boolean instead
+// of the usual reason string — collapse both shapes to a message or null.
+export function normalizeDeprecated(deprecated: string | boolean | undefined): string | null {
+  if (typeof deprecated === 'string') {
+    return deprecated
+  }
+
+  return deprecated ? 'deprecated' : null
+}
+
 const NPM_SEVERITY_MAP = {
   critical: 'critical',
   high: 'high',
@@ -67,6 +77,9 @@ function normalizeNpmAdvisory(packageName: string, advisory: NpmAdvisory): Vulne
     severity: NPM_SEVERITY_MAP[advisory.severity],
     affectedRange: advisory.vulnerable_versions,
     url: advisory.url,
+    // npm bulk advisories never carry a CVE id — mergeVulnerabilities recovers
+    // it from the matching OSV record, which does.
+    cveId: null,
   }
 }
 
