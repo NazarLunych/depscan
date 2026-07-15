@@ -1,13 +1,17 @@
 import type { NpmAdvisory, NpmPackument, Vulnerability } from '@/types'
 import semver from 'semver'
 
+import { fetchWithRetry, withTimeout } from '@/lib/httpClient'
 import { NpmBulkAdvisoriesResponseSchema, NpmPackumentSchema } from '@/lib/schemas'
 
 const REGISTRY_BASE = 'https://registry.npmjs.org'
 
-export async function fetchPackument(packageName: string): Promise<NpmPackument> {
+export async function fetchPackument(
+  packageName: string,
+  signal?: AbortSignal,
+): Promise<NpmPackument> {
   const url = `${REGISTRY_BASE}/${encodeURIComponent(packageName)}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+  const res = await fetchWithRetry(url, { signal: withTimeout(signal, 10_000) }, signal)
 
   if (res.status === 404) {
     throw new Error(`package not found: ${packageName}`)
@@ -85,6 +89,7 @@ function normalizeNpmAdvisory(packageName: string, advisory: NpmAdvisory): Vulne
 
 export async function fetchBulkAdvisories(
   packages: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<Vulnerability[]> {
   const body: Record<string, string[]> = {}
 
@@ -92,12 +97,16 @@ export async function fetchBulkAdvisories(
     body[name] = [version]
   }
 
-  const res = await fetch(`${REGISTRY_BASE}/-/npm/v1/security/advisories/bulk`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  })
+  const res = await fetchWithRetry(
+    `${REGISTRY_BASE}/-/npm/v1/security/advisories/bulk`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: withTimeout(signal, 15_000),
+    },
+    signal,
+  )
 
   if (!res.ok) {
     throw new Error(`npm bulk advisories error ${res.status}`)

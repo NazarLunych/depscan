@@ -3,10 +3,12 @@ import { useCallback, useRef, useState } from 'react'
 import { useAnalysisStore } from '@/stores/analysisStore'
 import type { PackageJsonInput } from '@/types'
 
+import { mergePackageJsonDependencies } from '@/lib/packageJson'
 import { SseEventSchema } from '@/lib/schemas'
 
 interface UseAnalysisResult {
   startAnalysis: (packageJson: PackageJsonInput, includeDevDependencies: boolean) => Promise<void>
+  cancelAnalysis: () => void
   isRunning: boolean
   error: string | null
 }
@@ -18,10 +20,7 @@ function collectEntries(
   packageJson: PackageJsonInput,
   includeDevDependencies: boolean,
 ): Array<{ name: string; versionRange: string }> {
-  const dependencies = {
-    ...packageJson.dependencies,
-    ...(includeDevDependencies ? packageJson.devDependencies : {}),
-  }
+  const dependencies = mergePackageJsonDependencies(packageJson, includeDevDependencies)
 
   return Object.entries(dependencies).map(([name, versionRange]) => ({ name, versionRange }))
 }
@@ -75,7 +74,7 @@ function dispatchSseEvent(rawChunk: string, store: Store): void {
 
       break
     case 'done':
-      store.finish(event.data.data)
+      store.finish()
       break
     case 'started':
       break
@@ -135,7 +134,7 @@ export function useAnalysis(): UseAnalysisResult {
 
       setError(null)
       store.reset()
-      store.initPackages(entries, entries.length)
+      store.initPackages(entries)
       entries.forEach((entry) => store.markAnalyzing(entry.name))
 
       abortControllerRef.current?.abort()
@@ -166,6 +165,8 @@ export function useAnalysis(): UseAnalysisResult {
         await readAnalysisStream(reader, store)
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
+          store.cancel()
+
           return
         }
 
@@ -178,5 +179,9 @@ export function useAnalysis(): UseAnalysisResult {
     [],
   )
 
-  return { startAnalysis, isRunning, error }
+  const cancelAnalysis = useCallback(() => {
+    abortControllerRef.current?.abort()
+  }, [])
+
+  return { startAnalysis, cancelAnalysis, isRunning, error }
 }

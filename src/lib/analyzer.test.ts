@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type * as AnthropicModule from '@anthropic-ai/sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { processBatch } from '@/lib/batchProcessor'
@@ -8,11 +9,16 @@ import { processBatch } from '@/lib/batchProcessor'
 
 const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }))
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  })),
-}))
+vi.mock('@anthropic-ai/sdk', async () => {
+  const actual = await vi.importActual<typeof AnthropicModule>('@anthropic-ai/sdk')
+
+  return {
+    ...actual,
+    default: vi.fn().mockImplementation(() => ({
+      messages: { create: mockCreate },
+    })),
+  }
+})
 
 function mockAnalysisFor(packageName: string, overrides: Record<string, unknown> = {}) {
   return {

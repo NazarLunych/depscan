@@ -1,3 +1,5 @@
+import { withTimeout } from '@/lib/httpClient'
+
 export type GitHubRelease = {
   tag_name: string
   body: string | null
@@ -73,14 +75,18 @@ function buildGitHubHeaders(etag?: string): HeadersInit {
   return headers
 }
 
-export async function fetchReleases(owner: string, repo: string): Promise<GitHubRelease[] | null> {
+export async function fetchReleases(
+  owner: string,
+  repo: string,
+  signal?: AbortSignal,
+): Promise<GitHubRelease[] | null> {
   const cacheKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`
   const cached = etagCache.get(cacheKey)
 
   try {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=10`, {
       headers: buildGitHubHeaders(cached?.etag),
-      signal: AbortSignal.timeout(10_000),
+      signal: withTimeout(signal, 10_000),
     })
 
     if (res.status === 304 && cached) {
@@ -103,11 +109,15 @@ export async function fetchReleases(owner: string, repo: string): Promise<GitHub
   }
 }
 
-export async function fetchChangelogContents(owner: string, repo: string): Promise<string | null> {
+export async function fetchChangelogContents(
+  owner: string,
+  repo: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
   try {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/CHANGELOG.md`, {
       headers: buildGitHubHeaders(),
-      signal: AbortSignal.timeout(10_000),
+      signal: withTimeout(signal, 10_000),
     })
 
     if (res.status === 404 || res.status === 403) return null

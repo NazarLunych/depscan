@@ -1,20 +1,37 @@
 'use client'
 
+import { useMemo } from 'react'
+
 import { useAnalysisStore } from '@/stores/analysisStore'
+import type { PackageState } from '@/types'
 
 import { FileUpload } from '@/components/FileUpload'
 import { PackageCard } from '@/components/PackageCard'
 import { ProgressBar } from '@/components/ProgressBar'
 import { useAnalysis } from '@/hooks/useAnalysis'
 
+function deriveSummary(order: string[], packages: Record<string, PackageState>) {
+  let done = 0
+  let failed = 0
+
+  for (const name of order) {
+    const status = packages[name]?.status
+
+    if (status === 'done') done++
+    else if (status === 'error') failed++
+  }
+
+  return { done, failed, total: order.length }
+}
+
 export default function HomePage() {
-  const { startAnalysis, isRunning, error } = useAnalysis()
+  const { startAnalysis, cancelAnalysis, isRunning, error } = useAnalysis()
 
   const order = useAnalysisStore((state) => state.order)
 
   const packages = useAnalysisStore((state) => state.packages)
 
-  const summary = useAnalysisStore((state) => state.summary)
+  const summary = useMemo(() => deriveSummary(order, packages), [order, packages])
 
   const fatalError = useAnalysisStore((state) => state.fatalError)
 
@@ -35,7 +52,19 @@ export default function HomePage() {
 
       {hasResults && (
         <div className="w-full max-w-2xl space-y-4">
-          <ProgressBar done={summary.done} failed={summary.failed} total={summary.total} />
+          <div className="flex items-center gap-4">
+            <ProgressBar done={summary.done} failed={summary.failed} total={summary.total} />
+
+            {isRunning && (
+              <button
+                type="button"
+                onClick={cancelAnalysis}
+                className="shrink-0 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-300 hover:bg-zinc-900"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
 
           <div className="space-y-3">
             {order.map((name) => {

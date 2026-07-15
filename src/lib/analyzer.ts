@@ -16,11 +16,12 @@ export async function analyzePackage(
   name: string,
   versionRange: string,
   advisoriesForFile: Vulnerability[],
+  signal?: AbortSignal,
 ): Promise<AnalyzerResult> {
   let currentVersion: string | null = null
 
   try {
-    const packument = await fetchPackument(name)
+    const packument = await fetchPackument(name, signal)
 
     currentVersion = resolveCurrentVersion(versionRange, packument)
 
@@ -37,13 +38,12 @@ export async function analyzePackage(
       currentVersion,
       latestVersion,
     )
-    const osvAdvisories = await queryOsvVulnerabilities(name, currentVersion)
+    const [osvAdvisories, changelogResult] = await Promise.all([
+      queryOsvVulnerabilities(name, currentVersion, signal),
+      resolveChangelog(name, currentVersion, latestVersion, versionMeta.repository?.url, signal),
+    ])
     const vulnerabilities = mergeVulnerabilities(npmAdvisories, osvAdvisories)
-    const {
-      text: changelogText,
-      source: changelogSource,
-      coverageGap,
-    } = await resolveChangelog(name, currentVersion, latestVersion, versionMeta.repository?.url)
+    const { text: changelogText, source: changelogSource, coverageGap } = changelogResult
     const facts = HardFactsSchema.parse({
       packageName: name,
       currentVersion,
@@ -55,7 +55,7 @@ export async function analyzePackage(
       changelogSource,
       coverageGap,
     })
-    const analysis = await callClaude(facts)
+    const analysis = await callClaude(facts, signal)
 
     return { status: 'done', name, currentVersion, analysis }
   } catch (err) {
@@ -68,6 +68,10 @@ export async function analyzePackage(
         currentVersion,
         error: `Received unexpected data for "${name}" — analysis unavailable.`,
       }
+    }
+
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { status: 'error', name, currentVersion, error: 'Cancelled' }
     }
 
     const message = err instanceof Error ? err.message : String(err)

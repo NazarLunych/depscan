@@ -1,9 +1,9 @@
+import { useAnalysisStore } from '@/stores/analysisStore'
 import type { PackageJsonInput } from '@/types'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAnalysis } from '@/hooks/useAnalysis'
-import { useAnalysisStore } from '@/stores/analysisStore'
 
 function sseEvent(type: string, data: unknown): string {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`
@@ -72,7 +72,7 @@ describe('useAnalysis', () => {
 
     expect(state.packages.react?.status).toBe('done')
     expect(state.packages.lodash?.status).toBe('done')
-    expect(state.summary).toEqual({ total: 2, done: 2, failed: 0, critical: 0 })
+    expect(state.getSummary()).toEqual({ total: 2, done: 2, failed: 0, critical: 0 })
     expect(result.current.error).toBeNull()
   })
 
@@ -97,7 +97,7 @@ describe('useAnalysis', () => {
     expect(state.packages.react?.status).toBe('done')
     expect(state.packages.lodash?.status).toBe('error')
     expect(state.packages.lodash?.error).toBe('registry 404')
-    expect(state.summary.failed).toBe(1)
+    expect(state.getSummary().failed).toBe(1)
   })
 
   it('ignores heartbeat comments and chunks split across reads', async () => {
@@ -173,5 +173,36 @@ describe('useAnalysis', () => {
     })
 
     expect(result.current.error).toBeNull()
+    expect(useAnalysisStore.getState().isRunning).toBe(false)
+  })
+
+  it('cancelAnalysis aborts the in-flight request and clears isRunning without an error', async () => {
+    let capturedSignal: AbortSignal | undefined
+
+    vi.spyOn(global, 'fetch').mockImplementation((_input, init) => {
+      capturedSignal = (init as RequestInit).signal ?? undefined
+
+      return new Promise((_resolve, reject) => {
+        capturedSignal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+        })
+      })
+    })
+
+    const { result } = renderHook(() => useAnalysis())
+
+    const analysisPromise = act(async () => {
+      await result.current.startAnalysis({ dependencies: { react: '^18.2.0' } }, false)
+    })
+
+    result.current.cancelAnalysis()
+    await analysisPromise
+
+    expect(capturedSignal?.aborted).toBe(true)
+    expect(result.current.error).toBeNull()
+    expect(useAnalysisStore.getState().isRunning).toBe(false)
+    expect(useAnalysisStore.getState().fatalError).toBeNull()
+    expect(useAnalysisStore.getState().packages.react?.status).toBe('error')
+    expect(useAnalysisStore.getState().packages.react?.error).toBe('Cancelled')
   })
 })

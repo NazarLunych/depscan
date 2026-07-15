@@ -82,6 +82,59 @@ describe('withConcurrency', () => {
     ])
   })
 
+  it('does not start new workers once the signal is already aborted', async () => {
+    const controller = new AbortController()
+
+    controller.abort()
+
+    const worker = vi.fn(async (item: number) => item)
+
+    await withConcurrency([1, 2, 3], 2, worker, undefined, controller.signal)
+
+    expect(worker).not.toHaveBeenCalled()
+  })
+
+  it('fills unclaimed indices via onSkipped when the signal aborts mid-batch', async () => {
+    const controller = new AbortController()
+    const items = [1, 2, 3, 4, 5]
+    const result = await withConcurrency(
+      items,
+      1,
+      async (item) => {
+        if (item === 2) {
+          controller.abort()
+        }
+
+        return item * 10
+      },
+      undefined,
+      controller.signal,
+      (item) => -item,
+    )
+
+    expect(result).toEqual([10, 20, -3, -4, -5])
+  })
+
+  it('leaves unclaimed indices undefined when no onSkipped is given', async () => {
+    const controller = new AbortController()
+    const items = [1, 2, 3]
+    const result = await withConcurrency(
+      items,
+      1,
+      async (item) => {
+        if (item === 1) {
+          controller.abort()
+        }
+
+        return item * 10
+      },
+      undefined,
+      controller.signal,
+    )
+
+    expect(result).toEqual([10, undefined, undefined])
+  })
+
   it('calls onItemDone progressively, not only after all workers finish', async () => {
     const callOrder: string[] = []
     const items = [30, 10]
@@ -168,7 +221,7 @@ describe('processBatch', () => {
     await processBatch(packageJson, false)
 
     expect(mockAnalyzePackage).toHaveBeenCalledTimes(1)
-    expect(mockAnalyzePackage).toHaveBeenCalledWith('react', '^18.2.0', [])
+    expect(mockAnalyzePackage).toHaveBeenCalledWith('react', '^18.2.0', [], undefined)
   })
 
   it('merges devDependencies when includeDevDependencies is true', async () => {
@@ -179,8 +232,8 @@ describe('processBatch', () => {
     await processBatch(packageJson, true)
 
     expect(mockAnalyzePackage).toHaveBeenCalledTimes(2)
-    expect(mockAnalyzePackage).toHaveBeenCalledWith('react', '^18.2.0', [])
-    expect(mockAnalyzePackage).toHaveBeenCalledWith('vitest', '^3.0.0', [])
+    expect(mockAnalyzePackage).toHaveBeenCalledWith('react', '^18.2.0', [], undefined)
+    expect(mockAnalyzePackage).toHaveBeenCalledWith('vitest', '^3.0.0', [], undefined)
   })
 
   it('calls fetchBulkAdvisories exactly once regardless of package count', async () => {
@@ -212,5 +265,26 @@ describe('processBatch', () => {
 
     expect(onResult).toHaveBeenCalledTimes(2)
     expect(onResult.mock.calls.map(([result]) => result.name).sort()).toEqual(['lodash', 'react'])
+  })
+
+  it('reports unclaimed packages as Cancelled instead of leaving them undefined', async () => {
+    const controller = new AbortController()
+    const packageJson: PackageJsonInput = {
+      dependencies: { react: '^18.2.0', lodash: '^4.17.21' },
+    }
+
+    mockAnalyzePackage.mockImplementation(async (name) => {
+      controller.abort()
+
+      return doneResult(name)
+    })
+
+    const result = await processBatch(packageJson, false, undefined, controller.signal)
+
+    expect(result).toHaveLength(2)
+    expect(
+      result.every((r) => r.status === 'done' || (r.status === 'error' && r.error === 'Cancelled')),
+    ).toBe(true)
+    expect(result.some((r) => r.status === 'error' && r.error === 'Cancelled')).toBe(true)
   })
 })

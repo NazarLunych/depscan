@@ -228,8 +228,9 @@ async function resolveFromGitHubChangelog(
   repo: { owner: string; repo: string },
   currentVersion: string,
   latestVersion: string,
+  signal: AbortSignal | undefined,
 ): Promise<ResolvedSource | null> {
-  const changelogFile = await fetchChangelogContents(repo.owner, repo.repo)
+  const changelogFile = await fetchChangelogContents(repo.owner, repo.repo, signal)
 
   if (!changelogFile) return null
 
@@ -254,8 +255,9 @@ function spansMultipleMajors(currentVersion: string, latestVersion: string): boo
 async function resolveFromExa(
   packageName: string,
   latestVersion: string,
+  signal: AbortSignal | undefined,
 ): Promise<ResolvedSource | null> {
-  const exaText = await searchChangelog(packageName, latestVersion)
+  const exaText = await searchChangelog(packageName, latestVersion, signal)
 
   return exaText && exaText.length > 0 ? { text: exaText, source: 'exa' } : null
 }
@@ -265,9 +267,10 @@ async function resolveSource(
   currentVersion: string,
   latestVersion: string,
   repositoryUrl: string | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<ResolvedSource> {
   const repo = repositoryUrl ? parseGitHubRepo(repositoryUrl) : null
-  const releases = repo ? await fetchReleases(repo.owner, repo.repo) : null
+  const releases = repo ? await fetchReleases(repo.owner, repo.repo, signal) : null
 
   // releases === null means either no repo, or GitHub was unreachable (403/rate-limit) —
   // either way Step 2 is skipped and we fall through to Exa.
@@ -280,7 +283,12 @@ async function resolveSource(
     )
 
     if (releasesResult && spansMultipleMajors(currentVersion, latestVersion)) {
-      const changelogResult = await resolveFromGitHubChangelog(repo, currentVersion, latestVersion)
+      const changelogResult = await resolveFromGitHubChangelog(
+        repo,
+        currentVersion,
+        latestVersion,
+        signal,
+      )
 
       if (changelogResult) {
         const merged = `${releasesResult.text}\n\n${changelogResult.text}`.slice(0, MAX_CHARS)
@@ -291,12 +299,17 @@ async function resolveSource(
 
     if (releasesResult) return releasesResult
 
-    const changelogResult = await resolveFromGitHubChangelog(repo, currentVersion, latestVersion)
+    const changelogResult = await resolveFromGitHubChangelog(
+      repo,
+      currentVersion,
+      latestVersion,
+      signal,
+    )
 
     if (changelogResult) return changelogResult
   }
 
-  const exaResult = await resolveFromExa(packageName, latestVersion)
+  const exaResult = await resolveFromExa(packageName, latestVersion, signal)
 
   return exaResult ?? { text: '', source: 'none' }
 }
@@ -306,8 +319,15 @@ export async function resolveChangelog(
   currentVersion: string,
   latestVersion: string,
   repositoryUrl: string | undefined,
+  signal?: AbortSignal,
 ): Promise<ChangelogResult> {
-  const resolved = await resolveSource(packageName, currentVersion, latestVersion, repositoryUrl)
+  const resolved = await resolveSource(
+    packageName,
+    currentVersion,
+    latestVersion,
+    repositoryUrl,
+    signal,
+  )
   const coverageGap = detectCoverageGap(resolved.text, currentVersion, latestVersion)
 
   return { ...resolved, coverageGap }

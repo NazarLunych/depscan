@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as BatchProcessorModule from '@/lib/batchProcessor'
 import { processBatch } from '@/lib/batchProcessor'
-
 import { POST } from './route'
 
 vi.mock('@/lib/batchProcessor', async () => {
@@ -97,6 +96,18 @@ describe('POST /api/analyze', () => {
 
   it('returns 400 for an invalid request body', async () => {
     const response = await POST(buildRequest({ packageJson: 'not-an-object' }))
+
+    expect(response.status).toBe(400)
+    expect(mockProcessBatch).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 instead of throwing for a malformed JSON body', async () => {
+    const request = new Request('http://localhost/api/analyze', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not valid json',
+    })
+    const response = await POST(request)
 
     expect(response.status).toBe(400)
     expect(mockProcessBatch).not.toHaveBeenCalled()

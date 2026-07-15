@@ -1,5 +1,6 @@
 import type { OsvVulnerability, Vulnerability } from '@/types'
 
+import { fetchWithRetry, withTimeout } from '@/lib/httpClient'
 import { OsvQueryResponseSchema } from '@/lib/schemas'
 
 function parseCvssScore(score: string): number {
@@ -82,13 +83,18 @@ export function normalizeOsvVulnerability(
 export async function queryOsvVulnerabilities(
   packageName: string,
   version: string,
+  signal?: AbortSignal,
 ): Promise<Vulnerability[]> {
-  const res = await fetch('https://api.osv.dev/v1/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ package: { name: packageName, ecosystem: 'npm' }, version }),
-    signal: AbortSignal.timeout(10_000),
-  })
+  const res = await fetchWithRetry(
+    'https://api.osv.dev/v1/query',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package: { name: packageName, ecosystem: 'npm' }, version }),
+      signal: withTimeout(signal, 10_000),
+    },
+    signal,
+  )
 
   if (!res.ok) {
     throw new Error(`OSV query error ${res.status} for ${packageName}@${version}`)

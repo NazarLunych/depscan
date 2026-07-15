@@ -22,7 +22,14 @@ function encodeHeartbeat(): Uint8Array {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const body = await request.json()
+  let body: unknown
+
+  try {
+    body = await request.json()
+  } catch {
+    return Response.json({ error: 'Request body is not valid JSON.' }, { status: 400 })
+  }
+
   const parsed = AnalyzeRequestSchema.safeParse(body)
 
   if (!parsed.success) {
@@ -83,7 +90,7 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
 
-      processBatch(packageJson, includeDevDependencies, onResult)
+      processBatch(packageJson, includeDevDependencies, onResult, request.signal)
         .then(() => {
           send('done', SseDonePayloadSchema.parse({ total, failed }))
           stop()
