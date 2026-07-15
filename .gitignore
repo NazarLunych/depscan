@@ -34,7 +34,3 @@ next-env.d.ts
 cypress/videos/
 cypress/screenshots/
 cypress/downloads/
-
-# Claude
-CLAUDE.md
-docs/
