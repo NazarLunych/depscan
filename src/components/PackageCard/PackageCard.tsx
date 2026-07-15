@@ -3,6 +3,7 @@ import { memo } from 'react'
 import type { PackageState } from '@/types'
 
 import { getPackageCardStyle } from '@/components/PackageCard/highlightStyles'
+import { PackageCardSkeleton } from '@/components/PackageCard/PackageCardSkeleton'
 
 interface PackageCardProps {
   pkg: PackageState
@@ -22,6 +23,8 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
           {style.badgeLabel}
         </span>
       </div>
+
+      {(pkg.status === 'pending' || pkg.status === 'analyzing') && <PackageCardSkeleton />}
 
       {pkg.status === 'error' && pkg.error && (
         <p className="mt-2 text-sm break-words text-red-400">{pkg.error}</p>

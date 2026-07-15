@@ -19,5 +19,13 @@ export function parsePackageJson(text: string): ParseResult {
     return { error: 'This does not look like a package.json (missing/invalid dependency fields).' }
   }
 
+  const hasDependencies =
+    Object.keys(result.data.dependencies ?? {}).length > 0 ||
+    Object.keys(result.data.devDependencies ?? {}).length > 0
+
+  if (!hasDependencies) {
+    return { error: 'No dependencies found in this package.json — nothing to analyze.' }
+  }
+
   return { data: result.data }
 }

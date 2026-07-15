@@ -16,11 +16,25 @@ describe('parsePackageJson', () => {
     })
   })
 
-  it('accepts an object with no dependency fields at all', () => {
+  it('rejects an object with no dependency fields at all', () => {
     const result = parsePackageJson(JSON.stringify({ name: 'my-app' }))
 
+    expect(result.data).toBeUndefined()
+    expect(result.error).toBe('No dependencies found in this package.json — nothing to analyze.')
+  })
+
+  it('rejects explicit empty dependency maps', () => {
+    const result = parsePackageJson(JSON.stringify({ dependencies: {}, devDependencies: {} }))
+
+    expect(result.data).toBeUndefined()
+    expect(result.error).toBe('No dependencies found in this package.json — nothing to analyze.')
+  })
+
+  it('accepts dependencies alone, with no devDependencies key', () => {
+    const result = parsePackageJson(JSON.stringify({ dependencies: { react: '^18.2.0' } }))
+
     expect(result.error).toBeUndefined()
-    expect(result.data).toEqual({})
+    expect(result.data).toEqual({ dependencies: { react: '^18.2.0' } })
   })
 
   it('returns an error for invalid JSON text', () => {
