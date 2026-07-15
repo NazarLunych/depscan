@@ -29,6 +29,14 @@ Rules:
   prefixes, followed by a space: "[Security] " or "[API] ". Never combine or
   nest prefixes (no "[Security][API]", no "][", no repeating a prefix within one
   entry) — one entry gets exactly one bracketed tag.
+- Output plain text only in every field. Never use markdown syntax — no
+  "[label](url)" links, no blockquotes ("> "), no headings, no bold/italic
+  markers. changelogText may itself contain markdown links or blockquotes;
+  when quoting from it, strip that formatting and keep only the plain wording
+  (e.g. a source link "[semantic versioning](http://semver.org/)" becomes just
+  "semantic versioning"). This applies everywhere except the two literal
+  "[Security] " / "[API] " prefixes above, which are not markdown and must be
+  kept as-is.
 - latestDeprecated tells you whether the TARGET version itself is a bad/deprecated
   release. If it is non-null, make that a prominent warning — do not recommend
   upgrading straight to a deprecated target.
