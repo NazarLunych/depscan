@@ -1,6 +1,7 @@
 import type { AnalyzerResult, SseEventType } from '@/types'
 
 import { countDependencies, processBatch } from '@/lib/batchProcessor'
+import { getClientId, isRateLimited } from '@/lib/rateLimiter'
 import {
   AnalyzeRequestSchema,
   SseDonePayloadSchema,
@@ -22,6 +23,13 @@ function encodeHeartbeat(): Uint8Array {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (isRateLimited(getClientId(request))) {
+    return Response.json(
+      { error: 'Too many analysis requests. Please try again later.' },
+      { status: 429 },
+    )
+  }
+
   let body: unknown
 
   try {
