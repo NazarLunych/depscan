@@ -30,6 +30,11 @@ next-env.d.ts
 *.pem
 .vercel
 
+# Cypress
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
 # Claude
 CLAUDE.md
 docs/

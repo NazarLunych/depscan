@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "dom"],
+    "types": ["cypress", "node"],
+    "esModuleInterop": true,
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "isolatedModules": true,
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

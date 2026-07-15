@@ -1,0 +1,9 @@
+event: started
+data: {"total":1}
+
+event: package-done
+data: {"name":"react","analysis":{"package":"react","current_version":"17.0.2","target_version":"18.2.0","breaking_changes":["New root API replaces ReactDOM.render"],"migration_steps":["Switch to createRoot"],"security_risks":"none","roi":"high","highlight":"red"}}
+
+event: done
+data: {"total":1,"failed":0}
+
