@@ -309,4 +309,157 @@ describe('analyzer + batchProcessor integration', () => {
       expect(results[0].error).toContain('truncated-pkg')
     }
   })
+
+  it('caches the Claude verdict for identical HardFacts and does not call Claude again', async () => {
+    const packageJson = { dependencies: { 'cached-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/cached-pkg')) {
+        return jsonResponse(makePackument('cached-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    mockCreate.mockImplementation(async () => mockAnalysisFor('cached-pkg'))
+
+    await processBatch(packageJson, false)
+    await processBatch(packageJson, false)
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls Claude again once the cache entry TTL (1 hour) has expired', async () => {
+    const packageJson = { dependencies: { 'ttl-expired-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/ttl-expired-pkg')) {
+        return jsonResponse(makePackument('ttl-expired-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    mockCreate.mockImplementation(async () => mockAnalysisFor('ttl-expired-pkg'))
+
+    vi.useFakeTimers()
+
+    try {
+      await processBatch(packageJson, false)
+
+      vi.advanceTimersByTime(61 * 60 * 1000)
+
+      await processBatch(packageJson, false)
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('calls Claude again when HardFacts changed (new vulnerability for the same version)', async () => {
+    const packageJson = { dependencies: { 'changing-facts-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/changing-facts-pkg')) {
+        return jsonResponse(makePackument('changing-facts-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    mockCreate.mockImplementation(async () => mockAnalysisFor('changing-facts-pkg'))
+
+    await processBatch(packageJson, false)
+
+    // Same package/version, but a new advisory shows up between requests —
+    // the cache key must change and Claude must be called again.
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) {
+        return jsonResponse({
+          'changing-facts-pkg': [
+            {
+              id: 2002,
+              title: 'Newly disclosed vulnerability',
+              severity: 'critical',
+              vulnerable_versions: '<2.0.0',
+            },
+          ],
+        })
+      }
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/changing-facts-pkg')) {
+        return jsonResponse(makePackument('changing-facts-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    await processBatch(packageJson, false)
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache a failed Claude call — a retry after failure calls Claude again', async () => {
+    const packageJson = { dependencies: { 'retry-after-fail-pkg': '^1.0.0' } }
+
+    mockFetch.mockImplementation(async (input: string | URL) => {
+      const url = String(input)
+
+      if (url.includes('/-/npm/v1/security/advisories/bulk')) return jsonResponse({})
+
+      if (url.includes('api.osv.dev')) return jsonResponse({ vulns: [] })
+
+      if (url.includes('registry.npmjs.org/retry-after-fail-pkg')) {
+        return jsonResponse(makePackument('retry-after-fail-pkg'))
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+
+    // claudeClient.callClaude already retries once internally on a bad
+    // tool_use payload before giving up — return invalid input twice so the
+    // whole callClaude call (both internal attempts) fails.
+    mockCreate
+      .mockImplementationOnce(async () => ({
+        content: [{ type: 'tool_use', id: 'toolu_1', name: 'record_package_analysis', input: {} }],
+      }))
+      .mockImplementationOnce(async () => ({
+        content: [{ type: 'tool_use', id: 'toolu_2', name: 'record_package_analysis', input: {} }],
+      }))
+
+    const firstRun = await processBatch(packageJson, false)
+
+    expect(firstRun[0]?.status).toBe('error')
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+
+    mockCreate.mockImplementation(async () => mockAnalysisFor('retry-after-fail-pkg'))
+
+    const secondRun = await processBatch(packageJson, false)
+
+    expect(secondRun[0]?.status).toBe('done')
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+  })
 })
