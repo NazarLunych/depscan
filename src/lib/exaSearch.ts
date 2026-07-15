@@ -1,20 +1,61 @@
-import Exa from 'exa-js'
+import Exa, { ExaError } from 'exa-js'
+
+import { sleep } from '@/lib/httpClient'
+
+// The exa-js SDK does not accept an AbortSignal, so a cancelled analysis
+// can't interrupt the underlying HTTP request — instead we race it against
+// the caller's signal so a cancelled request stops waiting immediately
+// instead of blocking the batch until Exa (plus its retry) responds.
+function raceWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) {
+    return promise
+  }
+
+  if (signal.aborted) {
+    return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'))
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => {
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    })
+  })
+}
+
+const RETRY_DELAY_MS = 1_000
+
+function isRateLimitError(err: unknown): boolean {
+  return err instanceof ExaError && err.statusCode === 429
+}
 
 export async function searchChangelog(
   packageName: string,
   version: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   if (!process.env.EXA_API_KEY) return null
 
+  const exa = new Exa(process.env.EXA_API_KEY)
+  const query = `${packageName} v${version} migration changelog`
+  const searchOptions = { numResults: 3, contents: { text: { maxCharacters: 8_000 } } }
+
   try {
-    const exa = new Exa(process.env.EXA_API_KEY)
-    const query = `${packageName} v${version} migration changelog`
-    const response = await exa.search(query, {
-      numResults: 3,
-      contents: {
-        text: { maxCharacters: 8_000 },
-      },
-    })
+    let response
+
+    try {
+      response = await raceWithSignal(exa.search(query, searchOptions), signal)
+    } catch (err) {
+      if (!isRateLimitError(err)) throw err
+
+      await sleep(RETRY_DELAY_MS, signal)
+      response = await raceWithSignal(exa.search(query, searchOptions), signal)
+    }
 
     const texts = response.results
       .map((r) => r.text)
@@ -23,7 +64,11 @@ export async function searchChangelog(
     if (texts.length === 0) return null
 
     return texts.join('\n\n---\n\n')
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw err
+    }
+
     return null
   }
 }

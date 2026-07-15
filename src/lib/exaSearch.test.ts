@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type * as ExaModule from 'exa-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { searchChangelog } from '@/lib/exaSearch'
@@ -7,11 +8,18 @@ import { searchChangelog } from '@/lib/exaSearch'
 
 const mockSearch = vi.fn()
 
-vi.mock('exa-js', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    search: mockSearch,
-  })),
-}))
+vi.mock('exa-js', async () => {
+  const actual = await vi.importActual<typeof ExaModule>('exa-js')
+
+  return {
+    ...actual,
+    default: vi.fn().mockImplementation(() => ({
+      search: mockSearch,
+    })),
+  }
+})
+
+const { ExaError } = await import('exa-js')
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +85,31 @@ describe('searchChangelog', () => {
     expect(await searchChangelog('react', '18.0.0')).toBeNull()
   })
 
+  it('retries once on a 429 and returns the result from the second attempt', async () => {
+    mockSearch
+      .mockRejectedValueOnce(new ExaError('Rate limited', 429))
+      .mockResolvedValueOnce({ results: [{ text: 'Migration guide content' }] })
+
+    const result = await searchChangelog('react', '18.0.0')
+
+    expect(result).toBe('Migration guide content')
+    expect(mockSearch).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns null after exhausting the retry on repeated 429s', async () => {
+    mockSearch.mockRejectedValue(new ExaError('Rate limited', 429))
+
+    expect(await searchChangelog('react', '18.0.0')).toBeNull()
+    expect(mockSearch).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry on a non-429 ExaError', async () => {
+    mockSearch.mockRejectedValue(new ExaError('Server error', 500))
+
+    expect(await searchChangelog('react', '18.0.0')).toBeNull()
+    expect(mockSearch).toHaveBeenCalledTimes(1)
+  })
+
   it('uses correct query format', async () => {
     mockSearch.mockResolvedValue({ results: [] })
 
@@ -86,5 +119,31 @@ describe('searchChangelog', () => {
       '@emotion/react v11.11.0 migration changelog',
       expect.objectContaining({ numResults: 3 }),
     )
+  })
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    mockSearch.mockResolvedValue({ results: [{ text: 'Migration guide content' }] })
+
+    const controller = new AbortController()
+
+    controller.abort()
+
+    await expect(searchChangelog('react', '18.0.0', controller.signal)).rejects.toThrow(
+      /aborted/i,
+    )
+  })
+
+  it('rejects once the signal fires while a search is in flight', async () => {
+    const controller = new AbortController()
+
+    mockSearch.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ results: [] }), 50)),
+    )
+
+    const promise = searchChangelog('react', '18.0.0', controller.signal)
+
+    queueMicrotask(() => controller.abort())
+
+    await expect(promise).rejects.toThrow(/aborted/i)
   })
 })

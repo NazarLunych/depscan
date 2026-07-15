@@ -1,6 +1,7 @@
 import type { HardFacts, PackageAnalysis } from '@/types'
-import Anthropic from '@anthropic-ai/sdk'
+import Anthropic, { APIError } from '@anthropic-ai/sdk'
 
+import { sleep } from '@/lib/httpClient'
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/prompts'
 import { PackageAnalysisSchema } from '@/lib/schemas'
 
@@ -34,7 +35,10 @@ const PACKAGE_ANALYSIS_TOOL_SCHEMA: Anthropic.Tool.InputSchema = {
   additionalProperties: false,
 }
 
-async function attempt(facts: HardFacts): Promise<PackageAnalysis> {
+async function attempt(
+  facts: HardFacts,
+  signal: AbortSignal | undefined,
+): Promise<PackageAnalysis> {
   const response = await client.messages.create(
     {
       model: MODEL,
@@ -51,7 +55,7 @@ async function attempt(facts: HardFacts): Promise<PackageAnalysis> {
       ],
       tool_choice: { type: 'tool', name: TOOL_NAME },
     },
-    { timeout: 30_000 },
+    { timeout: 30_000, signal },
   )
 
   const toolUseBlock = response.content.find((block) => block.type === 'tool_use')
@@ -73,12 +77,24 @@ async function attempt(facts: HardFacts): Promise<PackageAnalysis> {
   return result.data
 }
 
-export async function callClaude(facts: HardFacts): Promise<PackageAnalysis> {
-  try {
-    return await attempt(facts)
-  } catch (err) {
-    console.error(`[claudeClient] first attempt failed for "${facts.packageName}", retrying:`, err)
+const RETRY_DELAY_MS = 500
 
-    return await attempt(facts)
+// The SDK already retries transport-level failures (429/5xx/network) internally
+// with its own backoff — an `APIError` here means it already gave up, so
+// retrying again would just repeat a doomed request. Only retry the "got a
+// response but it was junk" case (missing tool_use block, schema mismatch),
+// which a fresh sample can plausibly fix.
+export async function callClaude(facts: HardFacts, signal?: AbortSignal): Promise<PackageAnalysis> {
+  try {
+    return await attempt(facts, signal)
+  } catch (err) {
+    if (err instanceof APIError) {
+      throw err
+    }
+
+    console.error(`[claudeClient] first attempt failed for "${facts.packageName}", retrying:`, err)
+    await sleep(RETRY_DELAY_MS, signal)
+
+    return await attempt(facts, signal)
   }
 }
