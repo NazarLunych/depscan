@@ -1,7 +1,13 @@
 {
   "name": "depscan",
   "version": "0.1.0",
+  "description": "AI-powered dependency analyzer that turns a package.json into per-package upgrade verdicts: security risk, breaking changes, migration steps, and ROI.",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NazarLunych/depscan.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
