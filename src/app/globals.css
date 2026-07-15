@@ -4,3 +4,11 @@
   --color-brand-red: oklch(55% 0.22 22);
   --color-brand-yellow: oklch(75% 0.18 85);
 }
+
+/* Tailwind v4's Preflight resets button cursor to `default` — restore the
+   pointer for non-disabled buttons so clickable controls read as clickable. */
+@layer base {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
