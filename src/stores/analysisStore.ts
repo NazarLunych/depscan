@@ -4,31 +4,57 @@ import { create } from 'zustand'
 interface AnalysisStore {
   packages: Record<string, PackageState>
   order: string[]
-  summary: AnalysisSummary
   isRunning: boolean
   fatalError: string | null
-  initPackages: (entries: Array<{ name: string; versionRange: string }>, total: number) => void
+  getSummary: () => AnalysisSummary
+  initPackages: (entries: Array<{ name: string; versionRange: string }>) => void
   markAnalyzing: (name: string) => void
   markDone: (name: string, analysis: PackageAnalysis) => void
   markError: (name: string, message: string) => void
   setFatalError: (message: string) => void
-  finish: (payload: { total: number; failed: number }) => void
+  finish: () => void
+  cancel: () => void
   reset: () => void
 }
 
-const emptySummary: AnalysisSummary = { total: 0, done: 0, failed: 0, critical: 0 }
 const initialState = {
   packages: {},
   order: [],
-  summary: emptySummary,
   isRunning: false,
   fatalError: null,
-} satisfies Pick<AnalysisStore, 'packages' | 'order' | 'summary' | 'isRunning' | 'fatalError'>
+} satisfies Pick<AnalysisStore, 'packages' | 'order' | 'isRunning' | 'fatalError'>
 
-export const useAnalysisStore = create<AnalysisStore>((set) => ({
+// summary (total/done/failed/critical) is fully derivable from packages+order,
+// so it's computed on read instead of hand-tracked in parallel — a status
+// transition can't drift out of sync with its own count.
+function deriveSummary(state: Pick<AnalysisStore, 'packages' | 'order'>): AnalysisSummary {
+  let done = 0
+  let failed = 0
+  let critical = 0
+
+  for (const name of state.order) {
+    const pkg = state.packages[name]
+
+    if (!pkg) continue
+
+    if (pkg.status === 'done') {
+      done++
+
+      if (pkg.analysis?.highlight === 'red') critical++
+    } else if (pkg.status === 'error') {
+      failed++
+    }
+  }
+
+  return { total: state.order.length, done, failed, critical }
+}
+
+export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   ...initialState,
 
-  initPackages: (entries, total) => {
+  getSummary: () => deriveSummary(get()),
+
+  initPackages: (entries) => {
     const packages: Record<string, PackageState> = {}
     const order: string[] = []
 
@@ -46,7 +72,6 @@ export const useAnalysisStore = create<AnalysisStore>((set) => ({
     set({
       packages,
       order,
-      summary: { total, done: 0, failed: 0, critical: 0 },
       isRunning: true,
       fatalError: null,
     })
@@ -85,11 +110,6 @@ export const useAnalysisStore = create<AnalysisStore>((set) => ({
             error: null,
           },
         },
-        summary: {
-          ...state.summary,
-          done: state.summary.done + 1,
-          critical: state.summary.critical + (analysis.highlight === 'red' ? 1 : 0),
-        },
       }
     })
   },
@@ -107,7 +127,6 @@ export const useAnalysisStore = create<AnalysisStore>((set) => ({
           ...state.packages,
           [name]: { ...pkg, status: 'error', analysis: null, error: message },
         },
-        summary: { ...state.summary, failed: state.summary.failed + 1 },
       }
     })
   },
@@ -115,14 +134,12 @@ export const useAnalysisStore = create<AnalysisStore>((set) => ({
   setFatalError: (message) => {
     set((state) => {
       const packages = { ...state.packages }
-      let newlyFailed = 0
 
       for (const name of state.order) {
         const pkg = packages[name]
 
         if (pkg && (pkg.status === 'pending' || pkg.status === 'analyzing')) {
           packages[name] = { ...pkg, status: 'error', analysis: null, error: message }
-          newlyFailed++
         }
       }
 
@@ -130,16 +147,31 @@ export const useAnalysisStore = create<AnalysisStore>((set) => ({
         packages,
         fatalError: message,
         isRunning: false,
-        summary: { ...state.summary, failed: state.summary.failed + newlyFailed },
       }
     })
   },
 
-  finish: (payload) => {
-    set((state) => ({
-      summary: { ...state.summary, total: payload.total, failed: payload.failed },
-      isRunning: false,
-    }))
+  finish: () => {
+    set({ isRunning: false })
+  },
+
+  cancel: () => {
+    set((state) => {
+      const packages = { ...state.packages }
+
+      for (const name of state.order) {
+        const pkg = packages[name]
+
+        if (pkg && (pkg.status === 'pending' || pkg.status === 'analyzing')) {
+          packages[name] = { ...pkg, status: 'error', analysis: null, error: 'Cancelled' }
+        }
+      }
+
+      return {
+        packages,
+        isRunning: false,
+      }
+    })
   },
 
   reset: () => {
