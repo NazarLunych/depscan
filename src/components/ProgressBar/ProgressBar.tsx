@@ -18,7 +18,14 @@ export const ProgressBar = memo(function ProgressBar({ done, failed, total }: Pr
         </span>
         <span>{percent}%</span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+      <div
+        role="progressbar"
+        aria-valuenow={settled}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuetext={`${settled} of ${total} packages analyzed${failed > 0 ? `, ${failed} failed` : ''}`}
+        className="h-2 w-full overflow-hidden rounded-full bg-zinc-800"
+      >
         <div
           className="h-full rounded-full bg-zinc-100 transition-all"
           style={{ width: `${percent}%` }}

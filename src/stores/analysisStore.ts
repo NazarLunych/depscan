@@ -49,6 +49,26 @@ function deriveSummary(state: Pick<AnalysisStore, 'packages' | 'order'>): Analys
   return { total: state.order.length, done, failed, critical }
 }
 
+// Both cancellation and a fatal stream error land every still-unsettled package
+// in the same place: an error card carrying the reason. Packages that already
+// settled keep their own result.
+function failUnsettled(
+  state: Pick<AnalysisStore, 'packages' | 'order'>,
+  message: string,
+): Record<string, PackageState> {
+  const packages = { ...state.packages }
+
+  for (const name of state.order) {
+    const pkg = packages[name]
+
+    if (pkg && (pkg.status === 'pending' || pkg.status === 'analyzing')) {
+      packages[name] = { ...pkg, status: 'error', analysis: null, error: message }
+    }
+  }
+
+  return packages
+}
+
 export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   ...initialState,
 
@@ -132,23 +152,11 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   },
 
   setFatalError: (message) => {
-    set((state) => {
-      const packages = { ...state.packages }
-
-      for (const name of state.order) {
-        const pkg = packages[name]
-
-        if (pkg && (pkg.status === 'pending' || pkg.status === 'analyzing')) {
-          packages[name] = { ...pkg, status: 'error', analysis: null, error: message }
-        }
-      }
-
-      return {
-        packages,
-        fatalError: message,
-        isRunning: false,
-      }
-    })
+    set((state) => ({
+      packages: failUnsettled(state, message),
+      fatalError: message,
+      isRunning: false,
+    }))
   },
 
   finish: () => {
@@ -156,22 +164,10 @@ export const useAnalysisStore = create<AnalysisStore>((set, get) => ({
   },
 
   cancel: () => {
-    set((state) => {
-      const packages = { ...state.packages }
-
-      for (const name of state.order) {
-        const pkg = packages[name]
-
-        if (pkg && (pkg.status === 'pending' || pkg.status === 'analyzing')) {
-          packages[name] = { ...pkg, status: 'error', analysis: null, error: 'Cancelled' }
-        }
-      }
-
-      return {
-        packages,
-        isRunning: false,
-      }
-    })
+    set((state) => ({
+      packages: failUnsettled(state, 'Cancelled'),
+      isRunning: false,
+    }))
   },
 
   reset: () => {

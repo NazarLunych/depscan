@@ -3,26 +3,11 @@
 import { useMemo } from 'react'
 
 import { useAnalysisStore } from '@/stores/analysisStore'
-import type { PackageState } from '@/types'
 
 import { FileUpload } from '@/components/FileUpload'
 import { PackageCard } from '@/components/PackageCard'
 import { ProgressBar } from '@/components/ProgressBar'
 import { useAnalysis } from '@/hooks/useAnalysis'
-
-function deriveSummary(order: string[], packages: Record<string, PackageState>) {
-  let done = 0
-  let failed = 0
-
-  for (const name of order) {
-    const status = packages[name]?.status
-
-    if (status === 'done') done++
-    else if (status === 'error') failed++
-  }
-
-  return { done, failed, total: order.length }
-}
 
 export default function HomePage() {
   const { startAnalysis, cancelAnalysis, isRunning, error } = useAnalysis()
@@ -31,7 +16,15 @@ export default function HomePage() {
 
   const packages = useAnalysisStore((state) => state.packages)
 
-  const summary = useMemo(() => deriveSummary(order, packages), [order, packages])
+  const getSummary = useAnalysisStore((state) => state.getSummary)
+
+  const summary = useMemo(
+    // order/packages are the inputs getSummary reads; depending on them keeps
+    // the memo honest even though it isn't called with them directly.
+    () => getSummary(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getSummary, order, packages],
+  )
 
   const fatalError = useAnalysisStore((state) => state.fatalError)
 
@@ -47,7 +40,9 @@ export default function HomePage() {
       <FileUpload onSubmit={startAnalysis} disabled={isRunning} />
 
       {(error ?? fatalError) && (
-        <p className="w-full max-w-2xl text-sm break-words text-red-400">{error ?? fatalError}</p>
+        <p role="alert" className="w-full max-w-2xl text-sm break-words text-red-400">
+          {error ?? fatalError}
+        </p>
       )}
 
       {hasResults && (
@@ -66,7 +61,7 @@ export default function HomePage() {
             )}
           </div>
 
-          <div className="space-y-3">
+          <div aria-live="polite" aria-busy={isRunning} className="space-y-3">
             {order.map((name) => {
               const pkg = packages[name]
 
