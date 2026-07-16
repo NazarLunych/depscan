@@ -7,6 +7,7 @@ import { useAnalysisStore } from '@/stores/analysisStore'
 import { FileUpload } from '@/components/FileUpload'
 import { PackageCard } from '@/components/PackageCard'
 import { ProgressBar } from '@/components/ProgressBar'
+import { Button } from '@/components/ui/Button'
 import { useAnalysis } from '@/hooks/useAnalysis'
 
 export default function HomePage() {
@@ -51,13 +52,9 @@ export default function HomePage() {
             <ProgressBar done={summary.done} failed={summary.failed} total={summary.total} />
 
             {isRunning && (
-              <button
-                type="button"
-                onClick={cancelAnalysis}
-                className="shrink-0 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-300 hover:bg-zinc-900"
-              >
+              <Button variant="secondary" className="shrink-0 px-3 py-1.5" onClick={cancelAnalysis}>
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
 

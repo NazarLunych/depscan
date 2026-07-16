@@ -4,6 +4,7 @@ import type { PackageState } from '@/types'
 
 import { getPackageCardStyle } from '@/components/PackageCard/highlightStyles'
 import { PackageCardSkeleton } from '@/components/PackageCard/PackageCardSkeleton'
+import { Card } from '@/components/ui/Card'
 
 interface PackageCardProps {
   pkg: PackageState
@@ -13,7 +14,7 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
   const style = getPackageCardStyle(pkg)
 
   return (
-    <div className={`rounded-xl border bg-zinc-900 p-4 ${style.borderClass}`}>
+    <Card className={style.borderClass}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <span className="font-medium break-words text-zinc-100">{pkg.name}</span>
@@ -64,6 +65,6 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 })
