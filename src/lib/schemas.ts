@@ -179,6 +179,20 @@ export const NpmAdvisorySchema = z.object({
 
 export const NpmBulkAdvisoriesResponseSchema = z.record(z.string(), z.array(NpmAdvisorySchema))
 
+// ─── GitHub API (fields we actually use) ──────────────────────────────────
+
+export const GitHubReleaseSchema = z.object({
+  tag_name: z.string(),
+  body: z.string().nullable(),
+})
+
+export const GitHubReleasesResponseSchema = z.array(GitHubReleaseSchema)
+
+export const GitHubContentsResponseSchema = z.object({
+  content: z.string(),
+  encoding: z.string(),
+})
+
 // ─── OSV.dev vulnerability record (fields we actually use) ───────────────
 
 export const OsvVulnerabilitySchema = z.object({

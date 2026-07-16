@@ -1,9 +1,9 @@
-import { withTimeout } from '@/lib/httpClient'
+import type { z } from 'zod'
 
-export type GitHubRelease = {
-  tag_name: string
-  body: string | null
-}
+import { withTimeout } from '@/lib/httpClient'
+import { GitHubContentsResponseSchema, GitHubReleasesResponseSchema } from '@/lib/schemas'
+
+export type GitHubRelease = z.infer<typeof GitHubReleasesResponseSchema>[number]
 
 type ETagEntry = {
   etag: string
@@ -99,7 +99,11 @@ export async function fetchReleases(
 
     if (!res.ok) return null
 
-    const releases = (await res.json()) as GitHubRelease[]
+    const parsed = GitHubReleasesResponseSchema.safeParse(await res.json())
+
+    if (!parsed.success) return null
+
+    const releases = parsed.data
     const etag = res.headers.get('etag') ?? ''
     etagCache.set(cacheKey, { etag, releases })
 
@@ -124,10 +128,12 @@ export async function fetchChangelogContents(
 
     if (!res.ok) return null
 
-    const data = (await res.json()) as { content: string; encoding: string }
+    const parsed = GitHubContentsResponseSchema.safeParse(await res.json())
+
+    if (!parsed.success) return null
 
     // GitHub returns base64 with embedded newlines — strip whitespace before decoding
-    return Buffer.from(data.content.replace(/\s/g, ''), 'base64').toString('utf-8')
+    return Buffer.from(parsed.data.content.replace(/\s/g, ''), 'base64').toString('utf-8')
   } catch {
     return null
   }
