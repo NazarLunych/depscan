@@ -1,14 +1,17 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useAnalysisStore } from '@/stores/analysisStore'
 
 import { FileUpload } from '@/components/FileUpload'
-import { PackageCard } from '@/components/PackageCard'
+import { FilterSortToolbar } from '@/components/FilterSortToolbar'
+import { PackageList } from '@/components/PackageList'
 import { ProgressBar } from '@/components/ProgressBar'
 import { Button } from '@/components/ui/Button'
 import { useAnalysis } from '@/hooks/useAnalysis'
+
+import { deriveVisibleOrder, type HighlightFilter, type SortMode } from '@/lib/packageOrdering'
 
 export default function HomePage() {
   const { startAnalysis, cancelAnalysis, isRunning, error } = useAnalysis()
@@ -28,6 +31,14 @@ export default function HomePage() {
   )
 
   const fatalError = useAnalysisStore((state) => state.fatalError)
+
+  const [filter, setFilter] = useState<HighlightFilter>('all')
+  const [sort, setSort] = useState<SortMode>('default')
+
+  const visibleOrder = useMemo(
+    () => deriveVisibleOrder(order, packages, filter, sort),
+    [order, packages, filter, sort],
+  )
 
   const hasResults = order.length > 0
 
@@ -58,12 +69,15 @@ export default function HomePage() {
             )}
           </div>
 
-          <div aria-live="polite" aria-busy={isRunning} className="space-y-3">
-            {order.map((name) => {
-              const pkg = packages[name]
+          <FilterSortToolbar
+            filter={filter}
+            sort={sort}
+            onFilterChange={setFilter}
+            onSortChange={setSort}
+          />
 
-              return pkg ? <PackageCard key={name} pkg={pkg} /> : null
-            })}
+          <div aria-live="polite" aria-busy={isRunning}>
+            <PackageList order={visibleOrder} packages={packages} />
           </div>
         </div>
       )}
