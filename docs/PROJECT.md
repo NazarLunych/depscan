@@ -169,3 +169,64 @@ e2e (Cypress), documentation updates.
 - Report export (PDF / Markdown), share links.
 - Support for `pnpm-lock.yaml` / `yarn.lock`, monorepo workspaces.
 - Auto-generating PRs with the upgrades.
+
+## 9. Week 7 — client-side depth: state, performance, testing, theming
+
+Weeks 1–6 delivered the analysis pipeline end to end (hard facts, changelog
+cascade, SSE, per-package error isolation) and a working UI on top of it. This
+week extends the client with the pieces a growing result set and a real
+usage session need: recovering from a single failed package without
+re-running the batch, staying responsive with a large `package.json`,
+keeping a chosen view (filter/sort) addressable via the URL, and a design
+system layer (`components/ui/`, theming) instead of ad-hoc styling per
+component.
+
+### What shipped
+- **`components/ui/` primitives** — `Button`, `Checkbox`, `Card` extracted
+  from duplicated Tailwind class strings in `FileUpload`/`page.tsx`/`PackageCard`.
+  Landed first since nothing else in the week depends on it, but everything
+  after builds on top of it.
+- **Per-package retry** — `POST /api/analyze/retry` (plain JSON, not SSE —
+  exactly one result) reuses `analyzePackage` + a one-entry
+  `fetchBulkAdvisories` call untouched. `useRetryPackage` wires the existing
+  `markAnalyzing`/`markDone`/`markError` store actions; no new store state.
+- **Virtualized + filterable + sortable package list** — `packageOrdering.ts`
+  derives a filtered/sorted view on every read (never mutates the store's own
+  `order`, following the same pattern `getSummary()` already established).
+  `PackageList` virtualizes the result with `@tanstack/react-virtual`, using
+  dynamic row measurement since `PackageCard`'s height varies a lot by status
+  (skeleton vs. done-with-N-breaking-changes vs. error) — a hand-rolled
+  fixed-row virtualizer would have misrendered, and correct dynamic-height
+  virtualization is a well-solved problem not worth reimplementing for an MVP.
+  This is the one new dependency of the week, discussed and scoped narrowly.
+- **URL-synced filter/sort state** — lifted from local `useState` into the
+  query string (`useSearchParams` / `router.replace`) via a new
+  `HomePageContent` component, with `page.tsx` reduced to the thin `Suspense`
+  wrapper Next.js requires around `useSearchParams`. Makes a filtered/sorted
+  *view* shareable within a browser session — it does not persist or share
+  the underlying analysis results, which still live only in that session's
+  Zustand store.
+- **RTL interaction tests** — a consolidated suite exercising real user
+  sequences (filtering narrows the visible cards, sorting reorders them,
+  Cancel flips unsettled cards to `Cancelled`, Retry replaces an error card)
+  on top of the existing render-only component tests.
+- **Light/dark theme** — CSS custom-property tokens (`bg`/`fg`/`surface`/
+  `border`/`muted`) swapped by a `.dark` class via Tailwind v4's
+  `@custom-variant`, applied by an inline boot script in `layout.tsx` before
+  hydration to avoid a flash. Migration was scoped to structural chrome only
+  (backgrounds, borders, primary/muted text) — the red/yellow status badges
+  in `highlightStyles.ts` stay literal Tailwind colors on purpose, since
+  they're deliberately colorful regardless of theme.
+
+### Bugs found and fixed along the way
+- jsdom has no `ResizeObserver`, so `@tanstack/react-virtual` silently
+  rendered zero rows under test — fixed with a shared
+  `stubVirtualizerViewport` test helper rather than an inline workaround per file.
+- A real hydration mismatch: `suppressHydrationWarning` was on `<body>`, but
+  the theme boot script mutates the class on `<html>` — moved it to the
+  element the script actually touches, verified in-browser before and after.
+
+### Deliberately not done this week
+- Richer drag&drop feedback (filename display, "reading…" state, file-type
+  error messaging) — identified as a candidate improvement but out of this
+  week's approved scope; still open for a future pass.

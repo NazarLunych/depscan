@@ -45,7 +45,8 @@ of unused-but-planned code is understood before moving to the next week.
 - **React 19**
 - **TypeScript 5** (strict mode)
 - **Tailwind CSS v4** (via `@tailwindcss/postcss`)
-- **Zustand** — client store for analysis results
+- **Zustand** — client store for analysis results (domain state only — see
+  [Client-side view state](#client-side-view-state) for what deliberately stays out of it)
 - **Zod** — validation on the API route input and on the Claude output
 - **Claude API** (`@anthropic-ai/sdk`) — model `claude-sonnet-4-6` for analysis
 - **Exa.ai API** (`exa-js`) — search for changelogs / migration guides (fallback)
@@ -53,6 +54,7 @@ of unused-but-planned code is understood before moving to the next week.
 - **OSV.dev API** — additional vulnerability data
 - **GitHub API** — Releases + Contents (CHANGELOG.md), primary changelog source
 - **semver** — resolve versions from range specifiers, filter vulnerabilities
+- **@tanstack/react-virtual** — dynamic-height virtualization for the package list
 - **Tests**: Vitest + RTL (unit/integration), Cypress (e2e)
 - **Deploy**: Vercel
 
@@ -74,17 +76,24 @@ npm run cypress:open   # Cypress e2e, interactive runner
 ```
 src/
   app/
-    api/analyze/route.ts   ← SSE endpoint, proxy to the pipeline (runtime: 'nodejs')
-    layout.tsx             ← root layout
-    page.tsx               ← home page
+    api/analyze/route.ts        ← SSE endpoint, proxy to the pipeline (runtime: 'nodejs')
+    api/analyze/retry/route.ts  ← single-package retry, plain JSON (no SSE — one result)
+    layout.tsx                  ← root layout + inline no-flash theme boot script
+    page.tsx                    ← thin Suspense wrapper (required for useSearchParams)
   components/
+    HomePageContent/       ← actual page body: filter/sort URL sync, all composition
     FileUpload/            ← drag&drop + textarea for package.json
-    PackageCard/           ← single-package card with result + highlight
+    FilterSortToolbar/     ← highlight filter + ROI/highlight sort controls
+    PackageList/           ← virtualized (@tanstack/react-virtual) list of PackageCard
+    PackageCard/           ← single-package card with result + highlight + retry button
     ProgressBar/           ← analysis progress (N / total)
+    ThemeToggle/           ← light/dark switch, persists to localStorage
+    ui/                    ← shared primitives: Button, Checkbox, Card
   hooks/
     useAnalysis.ts         ← SSE client (fetch reader + TextDecoder), store updates
+    useRetryPackage.ts     ← single-package retry (plain fetch, reuses store actions)
   stores/
-    analysisStore.ts       ← Zustand (byName, status, summary)
+    analysisStore.ts       ← Zustand (packages, order, isRunning, fatalError, summary)
   lib/
     npmRegistry.ts         ← versions, resolveCurrentVersion, bulk advisories, filter
     osvApi.ts              ← OSV.dev requests + normalization
@@ -94,6 +103,8 @@ src/
     claudeClient.ts        ← Claude call, JSON parse, Zod, retry
     analyzer.ts            ← single-package pipeline (wires everything together)
     batchProcessor.ts      ← withConcurrency(3), one bulk-advisories per file
+    packageOrdering.ts     ← pure filter/sort over the store's own order (never mutates it)
+    theme.ts               ← getStoredTheme / applyTheme (localStorage + prefers-color-scheme)
     prompts.ts             ← system prompts for Claude
     schemas.ts             ← Zod schemas (single source of truth)
   types/
@@ -116,6 +127,33 @@ src/
   intermediate majors).
 - **Cache** of results by the `name+version` pair: in-memory (Map) first, Vercel KV
   added later if needed.
+- **Retry is a single-package re-run, not a batch re-run.** `POST /api/analyze/retry`
+  reuses `analyzePackage` + a one-entry `fetchBulkAdvisories` call as-is — no new
+  pipeline code, no `processBatch`/`withConcurrency` involved. It answers with plain
+  JSON (`AnalyzerResult`), not SSE, since there's exactly one result to send back.
+
+## Client-side view state
+
+Not everything the UI needs lives in the Zustand store. Three things are
+deliberately kept **out** of `analysisStore.ts`:
+
+- **Filter and sort** (`FilterSortToolbar`, `packageOrdering.ts`) — derived,
+  computed fresh on every read from the store's own `order` + `packages`,
+  exactly like `getSummary()` already does. `order` itself is never mutated or
+  reordered; filtering/sorting only ever produce a new derived array.
+- **Filter/sort's *persistence*** — lives in the URL (`useSearchParams` /
+  `router.replace` in `HomePageContent.tsx`), not in the store and not in
+  `localStorage`. This makes a specific filtered/sorted *view* shareable
+  within a browser session; it does **not** persist or share the underlying
+  analysis results themselves, which still live only in the client's Zustand
+  store for that session.
+- **Theme** (`ThemeToggle`, `lib/theme.ts`) — `localStorage` + a `.dark` class
+  toggled on `<html>`, applied by an inline boot script in `layout.tsx` before
+  hydration to avoid a flash. Not app state, so it stays out of Zustand.
+
+Rule of thumb: if it's analysis domain data (packages, their status, results),
+it's in the store. If it's how the user is currently *looking* at that data,
+it isn't.
 
 ## Changelog & migration source cascade
 The order of tools for the most reliable, up-to-date info on a package upgrade
@@ -187,9 +225,14 @@ Always follow `prettier.config.mjs` exactly when writing or editing any file:
 
 ## What NOT to do
 - Don't use Redux — Zustand only.
-- Don't write CSS outside Tailwind.
-- Don't add dependencies without discussion.
+- Don't write CSS outside Tailwind (component-level styling; `globals.css`'s
+  `@theme`/`@custom-variant` tokens for light/dark are the one sanctioned exception).
+- Don't add dependencies without discussion. `@tanstack/react-virtual` was
+  discussed and approved specifically for `PackageList`'s dynamic-height
+  virtualization — that approval doesn't extend to other libraries.
 - Don't do direct DOM manipulation.
+- Don't put filter/sort/theme (or other view-only UI state) in
+  `analysisStore.ts` — see [Client-side view state](#client-side-view-state).
 
 ## Code conventions
 - **Zod** validation on the API route input (`package.json`) and on the Claude
@@ -230,3 +273,6 @@ The `test.ts` spike is done — it confirmed a working hard-fact collection pipe
 - [x] **Week 4** — Claude pipeline: `prompts.ts`, `claudeClient.ts`, `analyzer.ts`, `batchProcessor.ts`.
 - [x] **Week 5** — SSE: `api/analyze/route.ts`, `analysisStore.ts`, `useAnalysis.ts` + basic UI.
 - [x] **Week 6** — resilience: backoff on 429, GitHub cache, cancellation, edge cases, e2e.
+- [x] **Week 7** — frontend depth pass: see [`docs/PROJECT.md` §9](docs/PROJECT.md)
+      for the full breakdown (retry, virtualized filter/sort, URL state, `ui/`
+      primitives, RTL interaction tests, light/dark theme).
