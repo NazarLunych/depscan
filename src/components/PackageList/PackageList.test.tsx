@@ -1,31 +1,13 @@
 // @vitest-environment jsdom
+import { stubVirtualizerViewport } from '@/test/stubVirtualizer'
 import type { PackageState } from '@/types'
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { PackageList } from '@/components/PackageList/PackageList'
 
-const VIEWPORT_HEIGHT = 600
-
-// jsdom never lays anything out, so every element reports zero size and has
-// no ResizeObserver — the virtualizer's observeElementRect reads
-// offsetWidth/offsetHeight synchronously on mount and bails out entirely
-// without a ResizeObserver constructor. Stub both so it sees a realistic,
-// non-zero scrollable viewport to compute visible rows against.
 beforeEach(() => {
-  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-    configurable: true,
-    value: VIEWPORT_HEIGHT,
-  })
-
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  )
+  stubVirtualizerViewport()
 })
 
 function buildPackages(count: number): { order: string[]; packages: Record<string, PackageState> } {
