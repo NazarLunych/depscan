@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useAnalysisStore } from '@/stores/analysisStore'
 import type { PackageJsonInput } from '@/types'
@@ -181,6 +181,12 @@ export function useAnalysis(): UseAnalysisResult {
 
   const cancelAnalysis = useCallback(() => {
     abortControllerRef.current?.abort()
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
   }, [])
 
   return { startAnalysis, cancelAnalysis, isRunning, error }

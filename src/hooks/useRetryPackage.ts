@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useAnalysisStore } from '@/stores/analysisStore'
 
@@ -13,16 +13,24 @@ interface UseRetryPackageResult {
 }
 
 export function useRetryPackage(): UseRetryPackageResult {
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   const retryPackage = useCallback(async (name: string, versionRange: string): Promise<void> => {
     const store = useAnalysisStore.getState()
 
     store.markAnalyzing(name)
+
+    abortControllerRef.current?.abort()
+    const abortController = new AbortController()
+
+    abortControllerRef.current = abortController
 
     try {
       const response = await fetch('/api/analyze/retry', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, versionRange }),
+        signal: abortController.signal,
       })
 
       if (!response.ok) {
@@ -48,9 +56,19 @@ export function useRetryPackage(): UseRetryPackageResult {
         store.markError(name, parsed.data.error)
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return
+      }
+
       const message = err instanceof Error ? err.message : String(err)
 
       store.markError(name, message)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
     }
   }, [])
 
