@@ -21,11 +21,14 @@ const selectClassName =
 // positions we can't reach with CSS — appearance-none removes it, this
 // draws a replacement pinned at the same 6px inset the container padding
 // uses elsewhere, so it lines up with the box instead of hugging the edge.
+// backgroundSize is required — without it the browser renders the SVG at
+// a size disproportionate to the surrounding 14px text.
 const CHEVRON_SVG =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%23a1a1aa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")"
 const selectStyle = {
   backgroundImage: CHEVRON_SVG,
   backgroundPosition: 'right 6px center',
+  backgroundSize: '10px 10px',
 }
 
 export const FilterSortToolbar = memo(function FilterSortToolbar({
