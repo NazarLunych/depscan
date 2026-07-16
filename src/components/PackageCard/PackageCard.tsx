@@ -20,8 +20,8 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
     <Card className={style.borderClass}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
-          <span className="font-medium break-words text-zinc-100">{pkg.name}</span>
-          <span className="ml-2 text-sm text-zinc-500">{pkg.currentVersion}</span>
+          <span className="text-fg font-medium break-words">{pkg.name}</span>
+          <span className="text-muted ml-2 text-sm">{pkg.currentVersion}</span>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.badgeClass}`}>
           {style.badgeLabel}
@@ -47,15 +47,15 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
       )}
 
       {pkg.status === 'done' && pkg.analysis && (
-        <div className="mt-3 space-y-2 text-sm text-zinc-400">
+        <div className="text-muted mt-3 space-y-2 text-sm">
           <p className="break-words">
-            <span className="text-zinc-500">Target:</span> {pkg.analysis.target_version} ·{' '}
-            <span className="text-zinc-500">ROI:</span> {pkg.analysis.roi}
+            <span className="text-muted">Target:</span> {pkg.analysis.target_version} ·{' '}
+            <span className="text-muted">ROI:</span> {pkg.analysis.roi}
           </p>
 
           {pkg.analysis.breaking_changes.length > 0 && (
             <div>
-              <p className="text-zinc-500">Breaking changes:</p>
+              <p className="text-muted">Breaking changes:</p>
               <ul className="list-inside list-disc">
                 {pkg.analysis.breaking_changes.map((change) => (
                   <li key={change} className="break-words">
@@ -68,7 +68,7 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
 
           {pkg.analysis.migration_steps.length > 0 && (
             <div>
-              <p className="text-zinc-500">Migration steps:</p>
+              <p className="text-muted">Migration steps:</p>
               <ul className="list-inside list-disc">
                 {pkg.analysis.migration_steps.map((step) => (
                   <li key={step} className="break-words">

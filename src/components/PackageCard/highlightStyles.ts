@@ -18,21 +18,21 @@ const byHighlight: Record<'red' | 'yellow' | 'none', HighlightStyle> = {
     badgeClass: 'bg-yellow-500/10 text-yellow-400',
   },
   none: {
-    borderClass: 'border-zinc-800',
+    borderClass: 'border-border',
     badgeLabel: 'Up to date',
-    badgeClass: 'bg-zinc-800 text-zinc-400',
+    badgeClass: 'bg-surface text-muted',
   },
 }
 const byStatus: Record<'pending' | 'analyzing' | 'error', HighlightStyle> = {
   pending: {
-    borderClass: 'border-zinc-800',
+    borderClass: 'border-border',
     badgeLabel: 'Queued',
-    badgeClass: 'bg-zinc-800 text-zinc-500',
+    badgeClass: 'bg-surface text-muted',
   },
   analyzing: {
-    borderClass: 'border-zinc-700',
+    borderClass: 'border-border',
     badgeLabel: 'Analyzing…',
-    badgeClass: 'bg-zinc-800 text-zinc-300',
+    badgeClass: 'bg-surface text-muted',
   },
   error: {
     borderClass: 'border-red-500/60',

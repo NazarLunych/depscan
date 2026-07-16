@@ -13,15 +13,15 @@ interface RootLayoutProps {
   children: ReactNode
 }
 
+const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('depscan-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})();`
+
 export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (
-    <html lang="en" className="h-full">
-      <body
-        className="h-full min-h-screen bg-zinc-950 text-zinc-50 antialiased"
-        suppressHydrationWarning
-      >
-        {children}
-      </body>
+    <html lang="en" className="h-full" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
+      <body className="bg-bg text-fg h-full min-h-screen antialiased">{children}</body>
     </html>
   )
 }

@@ -108,12 +108,12 @@ export const FileUpload = memo(function FileUpload({ onSubmit, disabled }: FileU
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:outline-none ${
-          isDragOver ? 'border-zinc-400 bg-zinc-900' : 'border-zinc-800 bg-zinc-900/50'
+        className={`focus-visible:ring-fg rounded-xl border-2 border-dashed p-8 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+          isDragOver ? 'border-muted bg-surface' : 'border-border bg-surface/50'
         }`}
       >
-        <p className="text-sm text-zinc-400">Drag & drop your package.json here, or</p>
-        <label className="mt-2 inline-block cursor-pointer text-sm font-medium text-zinc-100 underline">
+        <p className="text-muted text-sm">Drag & drop your package.json here, or</p>
+        <label className="text-fg mt-2 inline-block cursor-pointer text-sm font-medium underline">
           browse a file{' '}
           <input
             ref={fileInputRef}
@@ -133,7 +133,7 @@ export const FileUpload = memo(function FileUpload({ onSubmit, disabled }: FileU
         aria-label="Paste your package.json contents"
         disabled={disabled}
         rows={6}
-        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 font-mono text-sm text-zinc-100 placeholder:text-zinc-500"
+        className="border-border bg-surface text-fg placeholder:text-muted w-full rounded-lg border p-3 font-mono text-sm"
       />
 
       <div className="flex items-center justify-between">

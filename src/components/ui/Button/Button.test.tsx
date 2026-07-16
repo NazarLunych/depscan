@@ -36,12 +36,12 @@ describe('Button', () => {
   it('applies the secondary variant classes', () => {
     render(<Button variant="secondary">Cancel</Button>)
 
-    expect(screen.getByRole('button', { name: 'Cancel' }).className).toContain('border-zinc-700')
+    expect(screen.getByRole('button', { name: 'Cancel' }).className).toContain('border-border')
   })
 
   it('defaults to the primary variant', () => {
     render(<Button>Analyze</Button>)
 
-    expect(screen.getByRole('button', { name: 'Analyze' }).className).toContain('bg-zinc-100')
+    expect(screen.getByRole('button', { name: 'Analyze' }).className).toContain('bg-fg')
   })
 })

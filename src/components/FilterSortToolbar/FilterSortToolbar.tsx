@@ -14,8 +14,7 @@ interface FilterSortToolbarProps {
   onSortChange: (sort: SortMode) => void
 }
 
-const selectClassName =
-  'rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-300'
+const selectClassName = 'rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-fg'
 
 export const FilterSortToolbar = memo(function FilterSortToolbar({
   filter,
@@ -25,7 +24,7 @@ export const FilterSortToolbar = memo(function FilterSortToolbar({
 }: FilterSortToolbarProps) {
   return (
     <div className="flex items-center gap-3">
-      <label className="flex items-center gap-2 text-sm text-zinc-400">
+      <label className="text-muted flex items-center gap-2 text-sm">
         Filter
         <select
           value={filter}
@@ -39,7 +38,7 @@ export const FilterSortToolbar = memo(function FilterSortToolbar({
         </select>
       </label>
 
-      <label className="flex items-center gap-2 text-sm text-zinc-400">
+      <label className="text-muted flex items-center gap-2 text-sm">
         Sort
         <select
           value={sort}

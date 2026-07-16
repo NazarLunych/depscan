@@ -24,9 +24,9 @@ describe('getPackageCardStyle', () => {
   })
 
   it('returns the error style for a failed package', () => {
-    expect(
-      getPackageCardStyle({ ...basePackage, status: 'error', error: 'boom' }).badgeLabel,
-    ).toBe('Error')
+    expect(getPackageCardStyle({ ...basePackage, status: 'error', error: 'boom' }).badgeLabel).toBe(
+      'Error',
+    )
   })
 
   it('maps a red highlight to the critical style', () => {

@@ -5,8 +5,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<'primary' | 'secondary', string> = {
-  primary: 'bg-zinc-100 text-zinc-950 disabled:opacity-40',
-  secondary: 'border border-zinc-700 text-zinc-300 hover:bg-zinc-900',
+  primary: 'bg-fg text-bg disabled:opacity-40',
+  secondary: 'border border-border text-muted hover:bg-surface',
 }
 
 export const Button = memo(function Button({

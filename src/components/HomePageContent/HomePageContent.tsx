@@ -9,6 +9,7 @@ import { FileUpload } from '@/components/FileUpload'
 import { FilterSortToolbar } from '@/components/FilterSortToolbar'
 import { PackageList } from '@/components/PackageList'
 import { ProgressBar } from '@/components/ProgressBar'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 import { useAnalysis } from '@/hooks/useAnalysis'
 
@@ -83,9 +84,13 @@ export function HomePageContent() {
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 px-4 py-16">
+      <div className="w-full max-w-2xl">
+        <ThemeToggle />
+      </div>
+
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-zinc-50 sm:text-5xl">DepScan</h1>
-        <p className="mt-3 text-lg text-zinc-400">AI-powered dependency analyzer</p>
+        <h1 className="text-fg text-4xl font-bold tracking-tight sm:text-5xl">DepScan</h1>
+        <p className="text-muted mt-3 text-lg">AI-powered dependency analyzer</p>
       </div>
 
       <FileUpload onSubmit={startAnalysis} disabled={isRunning} />
