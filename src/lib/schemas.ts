@@ -93,6 +93,11 @@ export const AnalyzeRequestSchema = z.object({
   includeDevDependencies: z.boolean().default(false),
 })
 
+export const RetryRequestSchema = z.object({
+  name: z.string().min(1),
+  versionRange: z.string().min(1),
+})
+
 // ─── Per-package state in the Zustand store ───────────────────────────────
 
 export const PackageStateSchema = z.object({

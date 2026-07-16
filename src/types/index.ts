@@ -16,6 +16,7 @@ import type {
   PackageJsonInputSchema,
   PackageStateSchema,
   PackageStatusSchema,
+  RetryRequestSchema,
   RoiSchema,
   SecurityRiskSchema,
   SseDonePayloadSchema,
@@ -50,6 +51,7 @@ export type AnalysisSummary = z.infer<typeof AnalysisSummarySchema>
 export type DependencyMap = z.infer<typeof DependencyMapSchema>
 export type PackageJsonInput = z.infer<typeof PackageJsonInputSchema>
 export type AnalyzeRequest = z.infer<typeof AnalyzeRequestSchema>
+export type RetryRequest = z.infer<typeof RetryRequestSchema>
 
 // ─── SSE events ───────────────────────────────────────────────────────────
 

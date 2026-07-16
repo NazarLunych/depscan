@@ -4,13 +4,16 @@ import type { PackageState } from '@/types'
 
 import { getPackageCardStyle } from '@/components/PackageCard/highlightStyles'
 import { PackageCardSkeleton } from '@/components/PackageCard/PackageCardSkeleton'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { useRetryPackage } from '@/hooks/useRetryPackage'
 
 interface PackageCardProps {
   pkg: PackageState
 }
 
 export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) {
+  const { retryPackage } = useRetryPackage()
   const style = getPackageCardStyle(pkg)
 
   return (
@@ -28,7 +31,19 @@ export const PackageCard = memo(function PackageCard({ pkg }: PackageCardProps) 
       {(pkg.status === 'pending' || pkg.status === 'analyzing') && <PackageCardSkeleton />}
 
       {pkg.status === 'error' && pkg.error && (
-        <p className="mt-2 text-sm break-words text-red-400">{pkg.error}</p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-sm break-words text-red-400">{pkg.error}</p>
+          {/* An errored package never went through markDone, so currentVersion
+              is still the original version range initPackages stored, not a
+              resolved version — exactly what the retry endpoint needs. */}
+          <Button
+            variant="secondary"
+            className="shrink-0 px-3 py-1.5"
+            onClick={() => retryPackage(pkg.name, pkg.currentVersion)}
+          >
+            Retry
+          </Button>
+        </div>
       )}
 
       {pkg.status === 'done' && pkg.analysis && (

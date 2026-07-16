@@ -33,6 +33,18 @@ describe('PackageCard', () => {
     expect(screen.getByText('boom')).toBeInTheDocument()
   })
 
+  it('renders a Retry button only when errored', () => {
+    render(<PackageCard pkg={{ ...basePackage, status: 'error', error: 'boom' }} />)
+
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('does not render a Retry button while pending', () => {
+    render(<PackageCard pkg={{ ...basePackage, status: 'pending' }} />)
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
   it('does not render a skeleton once done', () => {
     render(
       <PackageCard
