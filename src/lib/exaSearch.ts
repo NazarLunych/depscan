@@ -1,32 +1,6 @@
 import Exa, { ExaError } from 'exa-js'
 
-import { sleep } from '@/lib/httpClient'
-
-// The exa-js SDK does not accept an AbortSignal, so a cancelled analysis
-// can't interrupt the underlying HTTP request — instead we race it against
-// the caller's signal so a cancelled request stops waiting immediately
-// instead of blocking the batch until Exa (plus its retry) responds.
-function raceWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) {
-    return promise
-  }
-
-  if (signal.aborted) {
-    return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'))
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      reject(new DOMException('The operation was aborted.', 'AbortError'))
-    }
-
-    signal.addEventListener('abort', onAbort, { once: true })
-
-    promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener('abort', onAbort)
-    })
-  })
-}
+import { awaitWithSignal, sleep } from '@/lib/httpClient'
 
 const RETRY_DELAY_MS = 1_000
 
@@ -49,12 +23,12 @@ export async function searchChangelog(
     let response
 
     try {
-      response = await raceWithSignal(exa.search(query, searchOptions), signal)
+      response = await awaitWithSignal(exa.search(query, searchOptions), signal)
     } catch (err) {
       if (!isRateLimitError(err)) throw err
 
       await sleep(RETRY_DELAY_MS, signal)
-      response = await raceWithSignal(exa.search(query, searchOptions), signal)
+      response = await awaitWithSignal(exa.search(query, searchOptions), signal)
     }
 
     const texts = response.results

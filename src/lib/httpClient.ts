@@ -30,6 +30,32 @@ export function withTimeout(signal: AbortSignal | undefined, timeoutMs: number):
   return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
 }
 
+// Awaits a promise while also racing the caller's own cancellation signal —
+// used when the underlying operation (a shared cache entry, an SDK call with
+// no AbortSignal support) can't be cancelled directly, so a cancelled caller
+// still stops waiting immediately instead of blocking on it.
+export function awaitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) {
+    return promise
+  }
+
+  if (signal.aborted) {
+    return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'))
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => {
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    })
+  })
+}
+
 const RETRY_DELAY_MS = 500
 
 // Retries a fetch once, but only when the response itself reports a 429 —

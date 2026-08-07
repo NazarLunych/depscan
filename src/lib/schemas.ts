@@ -181,7 +181,7 @@ export const NpmBulkAdvisoriesResponseSchema = z.record(z.string(), z.array(NpmA
 
 // ─── GitHub API (fields we actually use) ──────────────────────────────────
 
-export const GitHubReleaseSchema = z.object({
+const GitHubReleaseSchema = z.object({
   tag_name: z.string(),
   body: z.string().nullable(),
 })

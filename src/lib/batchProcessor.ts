@@ -4,6 +4,8 @@ import { analyzePackage } from '@/lib/analyzer'
 import { fetchBulkAdvisories } from '@/lib/npmRegistry'
 import { mergePackageJsonDependencies } from '@/lib/packageJson'
 
+const ANALYSIS_CONCURRENCY = 3
+
 export function withConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -70,7 +72,7 @@ export async function processBatch(
 
   return withConcurrency(
     entries,
-    3,
+    ANALYSIS_CONCURRENCY,
     ([name, range]) => analyzePackage(name, range, advisories, signal),
     onResult ? (result) => onResult(result) : undefined,
     signal,

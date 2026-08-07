@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { resolveChangelog } from '@/lib/changelogExtractor'
 import { callClaude } from '@/lib/claudeClient'
+import { awaitWithSignal } from '@/lib/httpClient'
 import {
   fetchPackument,
   filterRelevantAdvisories,
@@ -42,38 +43,12 @@ function claudeCacheKey(facts: HardFacts): string {
   })
 }
 
-// Awaits a shared cached promise without letting *this* caller's own abort
-// reject it for every other concurrent awaiter — only this caller's local
-// race settles when their signal fires; the underlying promise (and the
-// cache entry) is untouched by that.
-function awaitWithOwnSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) {
-    return promise
-  }
-
-  if (signal.aborted) {
-    return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'))
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      reject(new DOMException('The operation was aborted.', 'AbortError'))
-    }
-
-    signal.addEventListener('abort', onAbort, { once: true })
-
-    promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener('abort', onAbort)
-    })
-  })
-}
-
 async function callClaudeCached(facts: HardFacts, signal?: AbortSignal): Promise<PackageAnalysis> {
   const key = claudeCacheKey(facts)
   const cached = claudeCache.get(key)
 
   if (cached && cached.expiresAt > Date.now()) {
-    return awaitWithOwnSignal(cached.promise, signal)
+    return awaitWithSignal(cached.promise, signal)
   }
 
   const promise = callClaude(facts, signal)
@@ -88,7 +63,7 @@ async function callClaudeCached(facts: HardFacts, signal?: AbortSignal): Promise
     claudeCache.delete(key)
   })
 
-  return awaitWithOwnSignal(promise, signal)
+  return awaitWithSignal(promise, signal)
 }
 
 export async function analyzePackage(

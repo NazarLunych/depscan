@@ -1,7 +1,7 @@
 import type { AnalyzerResult, SseEventType } from '@/types'
 
 import { countDependencies, processBatch } from '@/lib/batchProcessor'
-import { getClientId, isRateLimited } from '@/lib/rateLimiter'
+import { guardRequest } from '@/lib/requestGuard'
 import {
   AnalyzeRequestSchema,
   SseDonePayloadSchema,
@@ -13,38 +13,24 @@ import {
 export const runtime = 'nodejs'
 
 const HEARTBEAT_MS = 15_000
+const textEncoder = new TextEncoder()
 
 function encodeEvent(type: SseEventType, data: unknown): Uint8Array {
-  return new TextEncoder().encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
+  return textEncoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
 }
 
 function encodeHeartbeat(): Uint8Array {
-  return new TextEncoder().encode(': heartbeat\n\n')
+  return textEncoder.encode(': heartbeat\n\n')
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (isRateLimited(getClientId(request))) {
-    return Response.json(
-      { error: 'Too many analysis requests. Please try again later.' },
-      { status: 429 },
-    )
+  const guard = await guardRequest(request, AnalyzeRequestSchema)
+
+  if (guard instanceof Response) {
+    return guard
   }
 
-  let body: unknown
-
-  try {
-    body = await request.json()
-  } catch {
-    return Response.json({ error: 'Request body is not valid JSON.' }, { status: 400 })
-  }
-
-  const parsed = AnalyzeRequestSchema.safeParse(body)
-
-  if (!parsed.success) {
-    return Response.json({ error: parsed.error.message }, { status: 400 })
-  }
-
-  const { packageJson, includeDevDependencies } = parsed.data
+  const { packageJson, includeDevDependencies } = guard.data
   const total = countDependencies(packageJson, includeDevDependencies)
   let closed = false
   let heartbeatId: ReturnType<typeof setInterval> | undefined
@@ -116,7 +102,6 @@ export async function POST(request: Request): Promise<Response> {
     headers: {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
     },
   })
 }
