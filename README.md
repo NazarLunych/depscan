@@ -11,7 +11,7 @@ Claude turn it into a per-package verdict you can act on.
 
 **[Live demo →](https://depscan-nine.vercel.app)**
 
-<!-- Add a screenshot/GIF of the analysis result here before publishing. -->
+![DepScan analysis result showing a critical lodash upgrade recommendation](docs/images/depscan-analysis-result.png)
 
 ## How it works
 
