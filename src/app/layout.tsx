@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
+import Script from 'next/script'
 
 import '@/app/globals.css'
 
@@ -21,7 +22,14 @@ export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
-      <body className="bg-bg text-fg h-full min-h-screen antialiased">{children}</body>
+      <body className="bg-bg text-fg h-full min-h-screen antialiased">
+        {children}
+        <Script
+          id="job-search-monitoring"
+          src="https://nazarii-job-signals.nazariy-lunich.workers.dev/client.js"
+          strategy="afterInteractive"
+        />
+      </body>
     </html>
   )
 }
