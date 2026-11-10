@@ -21,6 +21,7 @@
   document.getElementById('download').addEventListener('click', () => send('cv_download'))
   document.addEventListener('webviewerloaded', async (event) => {
     const win = event.detail.source
+    win.PDFViewerApplicationOptions.set('disablePreferences', true)
     win.PDFViewerApplicationOptions.set('enableScripting', false)
     win.PDFViewerApplicationOptions.set('annotationEditorMode', -1)
     win.PDFViewerApplicationOptions.set('externalLinkTarget', 2)
