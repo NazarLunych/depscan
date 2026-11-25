@@ -63,5 +63,7 @@
     visibleSeconds++
     if ([15, 30, 60, 120].includes(visibleSeconds)) send('cv_visible_' + visibleSeconds + 's')
   }, 1000)
-  frame.src = '/cv/vendor/web/viewer.html?file=%2Fcv%2FNazarii_Lunych_React_CV.pdf#zoom=page-width'
+  // Each published CV version has its own page; the original page has no data-file.
+  const file = frame.dataset.file || '/cv/Nazarii_Lunych_React_CV.pdf'
+  frame.src = '/cv/vendor/web/viewer.html?file=' + encodeURIComponent(file) + '#zoom=page-width'
 })()
